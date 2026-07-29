@@ -481,6 +481,8 @@ const App = {
             <button class="btn secundario" onclick="App.exportarContactosCSV()">⬇ Exportar CSV</button>
             <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar CSV
               <input type="file" accept=".csv,text/csv" style="display:none" onchange="App.importarContactosCSV(this)"></label>
+            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar servidores (Excel)
+              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarServidoresExcel(this)"></label>
             <button class="btn" onclick="App.abrirContacto(null)">+ Nuevo contacto</button>
           </div>
         </div>
@@ -547,6 +549,89 @@ const App = {
     lector.readAsText(file, 'utf-8');
   },
 
+  // Importa el Excel/CSV exportado por el típico formulario de Google para altas de servidores.
+  // Los encabezados son largos y variables, así que se buscan por coincidencia parcial.
+  importarServidoresExcel(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const lector = new FileReader();
+    lector.onload = (e) => {
+      let filas;
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+        const hoja = wb.Sheets[wb.SheetNames[0]];
+        filas = XLSX.utils.sheet_to_json(hoja, { defval: '' });
+      } catch (err) { alert('No se pudo leer el archivo. ¿Es un Excel (.xlsx) o CSV válido?'); input.value = ''; return; }
+      if (!filas.length) { alert('El archivo no tiene filas de datos.'); input.value = ''; return; }
+
+      // Busca el valor de una fila por un trozo del nombre de columna, sin importar mayúsculas/tildes exactas.
+      const buscar = (fila, ...trozos) => {
+        const claves = Object.keys(fila);
+        for (const t of trozos) {
+          const k = claves.find(c => c.toLowerCase().includes(t.toLowerCase()));
+          if (k && fila[k] !== '' && fila[k] != null) return fila[k];
+        }
+        return '';
+      };
+      const aFechaISO = (v) => {
+        if (!v) return '';
+        if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+        const m = String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+        if (m) { let [, d, mo, y] = m; if (y.length === 2) y = '20' + y; return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`; }
+        return '';
+      };
+
+      const zonaId = this.ui.zonaId !== 'all' ? this.ui.zonaId : (Store.db.zonas[0]?.id || '');
+      if (!zonaId) { alert('Crea antes al menos una zona en Ajustes.'); input.value = ''; return; }
+
+      let creados = 0, actualizados = 0;
+      for (const f of filas) {
+        const nombre = buscar(f, 'Nombre');
+        const apellidos = buscar(f, 'Apellidos');
+        if (!nombre && !apellidos) continue;
+
+        const caminoTexto = String(buscar(f, 'qué año y con qué parroquia', 'camino de Emaús') || '');
+        const anioMatch = caminoTexto.match(/\d{4}/);
+        const parroquiaCamino = caminoTexto.replace(/\d{4}/, '').replace(/^[\s,.-]+/, '').trim();
+        const primeraVez = String(buscar(f, 'primera vez que vas a servir')).trim().toLowerCase().startsWith('sí');
+
+        const dni = String(buscar(f, 'DNI o NIE') || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+        const email = String(buscar(f, 'Email', 'correo electrónico') || '').toLowerCase().trim();
+
+        const datos = {
+          nombre, apellidos, dni, email,
+          telefono: String(buscar(f, 'Teléfono') || '').trim(),
+          direccion: buscar(f, 'Dirección'),
+          cp: String(buscar(f, 'Código Postal') || '').trim(),
+          localidad: buscar(f, 'Localidad'),
+          fechaNacimiento: aFechaISO(buscar(f, 'Fecha de Nacimiento')),
+          fechaExpedicionDni: aFechaISO(buscar(f, 'Fecha expedición DNI')),
+          zonaId,
+          fechaRetiro: anioMatch ? `${anioMatch[0]}-01-01` : '',
+          parroquiaCamino,
+          serviciosPrevios: primeraVez ? 0 : 1,
+          tallaPolo: buscar(f, 'Talla de polo'),
+          ronca: buscar(f, '¿Roncas?'),
+          duermeConRoncador: buscar(f, 'dormir con alguien que ronca'),
+          companeroPreferido: buscar(f, 'dormir con algún servidor'),
+          contactoEmergenciaNombre: buscar(f, 'Persona de contacto en caso de emergencia'),
+          contactoEmergenciaTelefono: String(buscar(f, 'Teléfono 2') || '').trim(),
+          contactoEmergenciaRelacion: buscar(f, 'Relación (Esposa')
+        };
+
+        const existente = Store.db.contactos.find(x =>
+          (dni && (x.dni || '').toUpperCase() === dni) || (email && (x.email || '').toLowerCase() === email));
+        if (existente) { Store.guardarContacto({ id: existente.id, ...datos }); actualizados++; }
+        else { Store.guardarContacto(datos); creados++; }
+      }
+      alert(`Importación completada: ${creados} contactos nuevos, ${actualizados} actualizados.\n\nSe han asignado a la zona "${Store.zona(zonaId)?.nombre || ''}" — cámbiala en cada ficha si hace falta.`);
+      input.value = '';
+      this.render();
+    };
+    lector.onerror = () => alert('No se pudo leer el archivo.');
+    lector.readAsArrayBuffer(file);
+  },
+
   abrirContacto(id) {
     const c = id ? Store.contacto(id) : { zonaId: this.ui.zonaId !== 'all' ? this.ui.zonaId : (Store.db.zonas[0]?.id || '') };
     const zonas = Store.db.zonas.map(z =>
@@ -567,6 +652,19 @@ const App = {
         <div class="campo"><label>Veces que sirvió antes de la app<br><small>(se suman a los retiros registrados aquí)</small></label>
           <input id="f-servicios-previos" type="number" min="0" value="${c.serviciosPrevios || 0}" style="width:100%"></div>
       </div>
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;font-weight:600">Más datos (alojamiento, emergencia, su propio camino)</summary>
+        <div class="grid2" style="margin-top:10px">
+          <div class="campo"><label>Parroquia de su camino de Emaús</label><input id="f-parroquia-camino" value="${esc(c.parroquiaCamino)}" style="width:100%"></div>
+          <div class="campo"><label>Talla de polo/polar</label><input id="f-talla-polo" value="${esc(c.tallaPolo)}" style="width:100%"></div>
+          <div class="campo"><label>¿Ronca?</label><input id="f-ronca" value="${esc(c.ronca)}" style="width:100%"></div>
+          <div class="campo"><label>¿Puede dormir con alguien que ronca?</label><input id="f-duerme-roncador" value="${esc(c.duermeConRoncador)}" style="width:100%"></div>
+          <div class="campo"><label>Compañero de habitación preferido</label><input id="f-companero" value="${esc(c.companeroPreferido)}" style="width:100%"></div>
+          <div class="campo"><label>Contacto de emergencia — nombre</label><input id="f-emerg-nombre" value="${esc(c.contactoEmergenciaNombre)}" style="width:100%"></div>
+          <div class="campo"><label>Contacto de emergencia — teléfono</label><input id="f-emerg-telefono" value="${esc(c.contactoEmergenciaTelefono)}" style="width:100%"></div>
+          <div class="campo"><label>Contacto de emergencia — relación</label><input id="f-emerg-relacion" value="${esc(c.contactoEmergenciaRelacion)}" style="width:100%"></div>
+        </div>
+      </details>
       ${(() => {
         if (!id) return '';
         const partes = [];
@@ -616,7 +714,11 @@ const App = {
       dni: v('f-dni'), fechaNacimiento: v('f-nacimiento'),
       email: v('f-email'), telefono: v('f-telefono'),
       zonaId: v('f-zona'), fechaRetiro: v('f-retiro') || null,
-      serviciosPrevios: Math.max(0, parseInt(v('f-servicios-previos'), 10) || 0)
+      serviciosPrevios: Math.max(0, parseInt(v('f-servicios-previos'), 10) || 0),
+      parroquiaCamino: v('f-parroquia-camino'), tallaPolo: v('f-talla-polo'),
+      ronca: v('f-ronca'), duermeConRoncador: v('f-duerme-roncador'),
+      companeroPreferido: v('f-companero'), contactoEmergenciaNombre: v('f-emerg-nombre'),
+      contactoEmergenciaTelefono: v('f-emerg-telefono'), contactoEmergenciaRelacion: v('f-emerg-relacion')
     });
     document.getElementById('contactoDialog').close();
     this.render();

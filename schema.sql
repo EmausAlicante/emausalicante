@@ -34,8 +34,24 @@ create table if not exists contactos (
   cp text default '',
   localidad text default '',
   fecha_expedicion_dni date,
-  servicios_previos int not null default 0
+  servicios_previos int not null default 0,
+  talla_polo text default '',
+  ronca text default '',
+  duerme_con_roncador text default '',
+  companero_preferido text default '',
+  contacto_emergencia_nombre text default '',
+  contacto_emergencia_telefono text default '',
+  contacto_emergencia_relacion text default '',
+  parroquia_camino text default ''
 );
+alter table contactos add column if not exists talla_polo text default '';
+alter table contactos add column if not exists ronca text default '';
+alter table contactos add column if not exists duerme_con_roncador text default '';
+alter table contactos add column if not exists companero_preferido text default '';
+alter table contactos add column if not exists contacto_emergencia_nombre text default '';
+alter table contactos add column if not exists contacto_emergencia_telefono text default '';
+alter table contactos add column if not exists contacto_emergencia_relacion text default '';
+alter table contactos add column if not exists parroquia_camino text default '';
 create index if not exists idx_contactos_zona on contactos(zona_id);
 create index if not exists idx_contactos_dni on contactos(upper(dni));
 create index if not exists idx_contactos_email on contactos(lower(email));

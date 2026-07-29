@@ -25,7 +25,11 @@ function contactoDesdeDB(r) {
     id: r.id, zonaId: r.zona_id, nombre: r.nombre, apellidos: r.apellidos,
     dni: r.dni || '', fechaNacimiento: r.fecha_nacimiento, email: r.email || '', telefono: r.telefono || '',
     fechaRetiro: r.fecha_retiro, direccion: r.direccion || '', cp: r.cp || '', localidad: r.localidad || '',
-    fechaExpedicionDni: r.fecha_expedicion_dni, serviciosPrevios: r.servicios_previos || 0
+    fechaExpedicionDni: r.fecha_expedicion_dni, serviciosPrevios: r.servicios_previos || 0,
+    tallaPolo: r.talla_polo || '', ronca: r.ronca || '', duermeConRoncador: r.duerme_con_roncador || '',
+    companeroPreferido: r.companero_preferido || '', contactoEmergenciaNombre: r.contacto_emergencia_nombre || '',
+    contactoEmergenciaTelefono: r.contacto_emergencia_telefono || '', contactoEmergenciaRelacion: r.contacto_emergencia_relacion || '',
+    parroquiaCamino: r.parroquia_camino || ''
   };
 }
 function contactoADB(c) {
@@ -33,7 +37,11 @@ function contactoADB(c) {
     id: c.id, zona_id: c.zonaId, nombre: c.nombre || '', apellidos: c.apellidos || '',
     dni: c.dni || '', fecha_nacimiento: c.fechaNacimiento || null, email: c.email || '', telefono: c.telefono || '',
     fecha_retiro: c.fechaRetiro || null, direccion: c.direccion || '', cp: c.cp || '', localidad: c.localidad || '',
-    fecha_expedicion_dni: c.fechaExpedicionDni || null, servicios_previos: c.serviciosPrevios || 0
+    fecha_expedicion_dni: c.fechaExpedicionDni || null, servicios_previos: c.serviciosPrevios || 0,
+    talla_polo: c.tallaPolo || '', ronca: c.ronca || '', duerme_con_roncador: c.duermeConRoncador || '',
+    companero_preferido: c.companeroPreferido || '', contacto_emergencia_nombre: c.contactoEmergenciaNombre || '',
+    contacto_emergencia_telefono: c.contactoEmergenciaTelefono || '', contacto_emergencia_relacion: c.contactoEmergenciaRelacion || '',
+    parroquia_camino: c.parroquiaCamino || ''
   };
 }
 
@@ -381,6 +389,9 @@ const Store = {
     }
     return datos.id;
   },
+
+  /* Alta masiva: se reutiliza guardarContacto() en bucle desde App.importarServidoresExcel,
+     así que no hace falta un método aparte aquí. */
 
   borrarContacto(id) {
     this.db.contactos = this.db.contactos.filter(c => c.id !== id);
