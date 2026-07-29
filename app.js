@@ -279,12 +279,20 @@ const App = {
       </tr>`;
     }).join('');
 
+    const tes = Store.db.tesoreria;
+    const saldo = tes.movimientos.reduce((s, m) => s + (m.tipo === 'ingreso' ? m.importe : -m.importe), 0);
+
     return `
       <div class="fila-tarjetas">
         <div class="stat"><div class="num">${servidores.length}</div><div class="etq">Servidores</div></div>
         <div class="stat"><div class="num">${caminantes.length}</div><div class="etq">Caminantes</div></div>
         <div class="stat"><div class="num">${proximos.length}</div><div class="etq">Retiros programados</div></div>
         <div class="stat"><div class="num">${pendientes.length}</div><div class="etq">Acciones pendientes</div></div>
+      </div>
+      <div class="tarjeta" style="cursor:pointer" onclick="App.ir('tesoreria')">
+        <h3 style="margin-top:0">💶 Saldo de tesorería</h3>
+        <div style="font-size:1.8rem;font-weight:700;color:${saldo >= 0 ? 'var(--verde)' : 'var(--rojo)'}">${saldo.toFixed(2)} €</div>
+        <p class="nota" style="margin:6px 0 0">Ver detalle en Tesorería →</p>
       </div>
       ${cardProx}
       ${cardAct}
