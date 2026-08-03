@@ -539,7 +539,7 @@ const App = {
         const dni = (f.dni || '').toUpperCase();
         const email = (f.email || '').toLowerCase();
         const existente = Store.db.contactos.find(x =>
-          (dni && (x.dni || '').toUpperCase() === dni) || (email && (x.email || '').toLowerCase() === email));
+          dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         const datos = {
           nombre: f.nombre || (existente ? existente.nombre : ''),
           apellidos: f.apellidos || (existente ? existente.apellidos : ''),
@@ -634,11 +634,103 @@ const App = {
         };
 
         const existente = Store.db.contactos.find(x =>
-          (dni && (x.dni || '').toUpperCase() === dni) || (email && (x.email || '').toLowerCase() === email));
+          dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         if (existente) { Store.guardarContacto({ id: existente.id, ...datos }); actualizados++; }
         else { Store.guardarContacto(datos); creados++; }
       }
       alert(`Importación completada: ${creados} contactos nuevos, ${actualizados} actualizados.\n\nSe han asignado a la zona "${Store.zona(zonaId)?.nombre || ''}" — cámbiala en cada ficha si hace falta.`);
+      input.value = '';
+      this.render();
+    };
+    lector.onerror = () => alert('No se pudo leer el archivo.');
+    lector.readAsArrayBuffer(file);
+  },
+
+  // Importa el Excel del formulario de inscripción de CAMINANTES de un retiro concreto:
+  // crea/actualiza el contacto y además los inscribe como caminantes en ESTE retiro, con
+  // sus datos de Palancas (contactos de apoyo, quién invitó, si viene con alguien conocido...).
+  importarCaminantesExcel(input, retiroId) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const retiro = Store.retiro(retiroId);
+    const lector = new FileReader();
+    lector.onload = (e) => {
+      let filas;
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+        const hoja = wb.Sheets[wb.SheetNames[0]];
+        filas = XLSX.utils.sheet_to_json(hoja, { defval: '' });
+      } catch (err) { alert('No se pudo leer el archivo. ¿Es un Excel (.xlsx) o CSV válido?'); input.value = ''; return; }
+      if (!filas.length) { alert('El archivo no tiene filas de datos.'); input.value = ''; return; }
+
+      const buscar = (fila, ...trozos) => {
+        const claves = Object.keys(fila);
+        for (const t of trozos) {
+          const k = claves.find(c => c.toLowerCase().includes(t.toLowerCase()));
+          if (k && fila[k] !== '' && fila[k] != null) return fila[k];
+        }
+        return '';
+      };
+      const aFechaISO = (v) => {
+        if (!v) return '';
+        if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+        const m = String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+        if (m) { let [, d, mo, y] = m; if (y.length === 2) y = '20' + y; return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`; }
+        return '';
+      };
+
+      let creados = 0, actualizados = 0;
+      for (const f of filas) {
+        const nombre = buscar(f, 'Nombre');
+        const apellidos = buscar(f, 'Apellidos');
+        if (!nombre && !apellidos) continue;
+
+        const dni = String(buscar(f, 'DNI o NIE') || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+        const email = String(buscar(f, 'Email', 'correo electrónico') || '').toLowerCase().trim();
+
+        const datosContacto = {
+          nombre, apellidos, dni, email,
+          telefono: String(buscar(f, 'Teléfono') || '').trim(),
+          direccion: buscar(f, 'Dirección'),
+          cp: String(buscar(f, 'Código Postal') || '').trim(),
+          localidad: buscar(f, 'Localidad'),
+          fechaNacimiento: aFechaISO(buscar(f, 'Fecha de Nacimiento')),
+          fechaExpedicionDni: aFechaISO(buscar(f, 'Fecha expedición DNI')),
+          estadoCivil: buscar(f, 'Estado Civil'),
+          tallaPolo: buscar(f, 'Talla de camisa', 'Talla de polo'),
+          zonaId: retiro?.zonaId,
+          politicaAceptada: String(buscar(f, 'Política privacidad', 'Política de privacidad')).trim().toLowerCase().startsWith('acepto')
+        };
+
+        const existente = Store.db.contactos.find(x =>
+          dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
+        let contactoId;
+        if (existente) { contactoId = Store.guardarContacto({ id: existente.id, ...datosContacto }); actualizados++; }
+        else { contactoId = Store.guardarContacto(datosContacto); creados++; }
+
+        const insId = Store.inscribir(retiroId, contactoId, 'caminante');
+        Store.actualizarInscripcion(insId, {
+          palancasContacto1Nombre: buscar(f, 'persona de contacto 1'),
+          palancasContacto1Telefono: String(buscar(f, 'Teléfono (1)') || '').trim(),
+          palancasContacto1Email: buscar(f, 'Email (1)'),
+          palancasContacto1Relacion: buscar(f, 'Relación (1)'),
+          palancasContacto2Nombre: buscar(f, 'persona de contacto 2'),
+          palancasContacto2Telefono: String(buscar(f, 'Teléfono (2)') || '').trim(),
+          palancasContacto2Email: buscar(f, 'Email (2)'),
+          palancasContacto2Relacion: buscar(f, 'Relación (2)'),
+          palancasQuienInvito: buscar(f, 'quién te ha invitado'),
+          palancasTelefonoInvito: String(buscar(f, 'Teléfono del mismo') || '').trim(),
+          palancasEmailInvito: buscar(f, 'Email del mismo'),
+          mesaConoceA: (() => {
+            const v = String(buscar(f, 'amigo o familiar al retiro') || '').trim();
+            if (!v || v.toLowerCase().startsWith('no')) return '';
+            return v.replace(/^s[ií]\s*[.,]?\s*/i, '').replace(/\.$/, '').trim();
+          })(),
+          palancasNecesitaTransporte: String(buscar(f, 'necesitas transporte')).trim().toLowerCase().startsWith('s'),
+          familiaresDomingo: buscar(f, 'a la misa del domingo')
+        });
+      }
+      alert(`Importación completada: ${creados} caminantes nuevos, ${actualizados} actualizados, todos inscritos en «${retiro?.nombre || ''}».`);
       input.value = '';
       this.render();
     };
@@ -673,6 +765,7 @@ const App = {
         <summary style="cursor:pointer;font-weight:600">Más datos (alojamiento, emergencia, su propio camino)</summary>
         <div class="grid2" style="margin-top:10px">
           <div class="campo"><label>Parroquia de su camino de Emaús</label><input id="f-parroquia-camino" value="${esc(c.parroquiaCamino)}" style="width:100%"></div>
+          <div class="campo"><label>Estado civil</label><input id="f-estado-civil" value="${esc(c.estadoCivil)}" style="width:100%"></div>
           <div class="campo"><label>Talla de polo/polar</label><input id="f-talla-polo" value="${esc(c.tallaPolo)}" style="width:100%"></div>
           <div class="campo"><label>¿Ronca?</label><input id="f-ronca" value="${esc(c.ronca)}" style="width:100%"></div>
           <div class="campo"><label>¿Puede dormir con alguien que ronca?</label><input id="f-duerme-roncador" value="${esc(c.duermeConRoncador)}" style="width:100%"></div>
@@ -739,7 +832,7 @@ const App = {
       companeroPreferido: v('f-companero'), contactoEmergenciaNombre: v('f-emerg-nombre'),
       contactoEmergenciaTelefono: v('f-emerg-telefono'), contactoEmergenciaRelacion: v('f-emerg-relacion'),
       politicaAceptada: document.getElementById('f-politica').checked,
-      alergias: v('f-alergias')
+      alergias: v('f-alergias'), estadoCivil: v('f-estado-civil')
     });
     document.getElementById('contactoDialog').close();
     this.render();
@@ -1118,6 +1211,10 @@ const App = {
           <select id="ins-papel"><option value="servidor">Viene a servir</option><option value="caminante">Caminante</option></select>
           <button class="btn mini" onclick="App.inscribirManual('${r.id}')">+ Añadir inscrito</button>
         </div>` : ''}
+        <div class="acciones-linea" style="margin-top:8px">
+          <label class="btn secundario mini" style="margin:0;cursor:pointer">⬆ Importar caminantes (Excel)
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarCaminantesExcel(this, '${r.id}')"></label>
+        </div>
       </div>
 
       <div class="tarjeta">
@@ -1597,12 +1694,16 @@ const App = {
       <div class="grid2">
         <div class="campo"><label>Contacto 1 — nombre</label><input id="pal-c1-nombre" value="${esc(i.palancasContacto1Nombre)}" style="width:100%"></div>
         <div class="campo"><label>Contacto 1 — teléfono</label><input id="pal-c1-tel" value="${esc(i.palancasContacto1Telefono)}" style="width:100%"></div>
+        <div class="campo"><label>Contacto 1 — email</label><input id="pal-c1-email" value="${esc(i.palancasContacto1Email)}" style="width:100%"></div>
         <div class="campo"><label>Contacto 1 — relación</label><input id="pal-c1-rel" value="${esc(i.palancasContacto1Relacion)}" style="width:100%"></div>
         <div class="campo"><label>Contacto 2 — nombre</label><input id="pal-c2-nombre" value="${esc(i.palancasContacto2Nombre)}" style="width:100%"></div>
         <div class="campo"><label>Contacto 2 — teléfono</label><input id="pal-c2-tel" value="${esc(i.palancasContacto2Telefono)}" style="width:100%"></div>
+        <div class="campo"><label>Contacto 2 — email</label><input id="pal-c2-email" value="${esc(i.palancasContacto2Email)}" style="width:100%"></div>
         <div class="campo"><label>Contacto 2 — relación</label><input id="pal-c2-rel" value="${esc(i.palancasContacto2Relacion)}" style="width:100%"></div>
         <div class="campo"><label>¿Quién le invitó al retiro?</label><input id="pal-invito" value="${esc(i.palancasQuienInvito)}" style="width:100%"></div>
         <div class="campo"><label>Teléfono de quien le invitó</label><input id="pal-invito-tel" value="${esc(i.palancasTelefonoInvito)}" style="width:100%"></div>
+        <div class="campo"><label>Email de quien le invitó</label><input id="pal-invito-email" value="${esc(i.palancasEmailInvito)}" style="width:100%"></div>
+        <div class="campo"><label>¿Sus familiares van a la misa del domingo?</label><input id="pal-familia-domingo" value="${esc(i.familiaresDomingo)}" style="width:100%"></div>
         <div class="campo"><label>Mesa</label><input id="pal-mesa" value="${esc(i.palancasMesa)}" style="width:100%"></div>
         <div class="campo" style="align-self:center"><label class="check-linea"><input type="checkbox" id="pal-transporte" ${i.palancasNecesitaTransporte ? 'checked' : ''}> Necesita transporte</label></div>
         <div class="campo"><label>Asignado a (del equipo de Palancas)</label>
@@ -1627,9 +1728,10 @@ const App = {
   guardarPalancas(insId) {
     const v = x => document.getElementById(x).value.trim();
     Store.actualizarInscripcion(insId, {
-      palancasContacto1Nombre: v('pal-c1-nombre'), palancasContacto1Telefono: v('pal-c1-tel'), palancasContacto1Relacion: v('pal-c1-rel'),
-      palancasContacto2Nombre: v('pal-c2-nombre'), palancasContacto2Telefono: v('pal-c2-tel'), palancasContacto2Relacion: v('pal-c2-rel'),
-      palancasQuienInvito: v('pal-invito'), palancasTelefonoInvito: v('pal-invito-tel'), palancasMesa: v('pal-mesa'),
+      palancasContacto1Nombre: v('pal-c1-nombre'), palancasContacto1Telefono: v('pal-c1-tel'), palancasContacto1Email: v('pal-c1-email'), palancasContacto1Relacion: v('pal-c1-rel'),
+      palancasContacto2Nombre: v('pal-c2-nombre'), palancasContacto2Telefono: v('pal-c2-tel'), palancasContacto2Email: v('pal-c2-email'), palancasContacto2Relacion: v('pal-c2-rel'),
+      palancasQuienInvito: v('pal-invito'), palancasTelefonoInvito: v('pal-invito-tel'), palancasEmailInvito: v('pal-invito-email'),
+      familiaresDomingo: v('pal-familia-domingo'), palancasMesa: v('pal-mesa'),
       palancasNecesitaTransporte: document.getElementById('pal-transporte').checked,
       palancasAsignadoA: v('pal-asignado') || null,
       palancasContactado: document.getElementById('pal-contactado').checked,

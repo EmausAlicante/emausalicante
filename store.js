@@ -29,7 +29,8 @@ function contactoDesdeDB(r) {
     tallaPolo: r.talla_polo || '', ronca: r.ronca || '', duermeConRoncador: r.duerme_con_roncador || '',
     companeroPreferido: r.companero_preferido || '', contactoEmergenciaNombre: r.contacto_emergencia_nombre || '',
     contactoEmergenciaTelefono: r.contacto_emergencia_telefono || '', contactoEmergenciaRelacion: r.contacto_emergencia_relacion || '',
-    parroquiaCamino: r.parroquia_camino || '', politicaAceptada: !!r.politica_aceptada, alergias: r.alergias || ''
+    parroquiaCamino: r.parroquia_camino || '', politicaAceptada: !!r.politica_aceptada, alergias: r.alergias || '',
+    estadoCivil: r.estado_civil || ''
   };
 }
 function contactoADB(c) {
@@ -41,7 +42,8 @@ function contactoADB(c) {
     talla_polo: c.tallaPolo || '', ronca: c.ronca || '', duerme_con_roncador: c.duermeConRoncador || '',
     companero_preferido: c.companeroPreferido || '', contacto_emergencia_nombre: c.contactoEmergenciaNombre || '',
     contacto_emergencia_telefono: c.contactoEmergenciaTelefono || '', contacto_emergencia_relacion: c.contactoEmergenciaRelacion || '',
-    parroquia_camino: c.parroquiaCamino || '', politica_aceptada: !!c.politicaAceptada, alergias: c.alergias || ''
+    parroquia_camino: c.parroquiaCamino || '', politica_aceptada: !!c.politicaAceptada, alergias: c.alergias || '',
+    estado_civil: c.estadoCivil || ''
   };
 }
 
@@ -88,7 +90,9 @@ function inscripcionDesdeDB(r) {
     palancasNecesitaTransporte: !!r.palancas_necesita_transporte, palancasMesa: r.palancas_mesa || '',
     palancasAsignadoA: r.palancas_asignado_a || null, palancasContactado: !!r.palancas_contactado,
     llegado: !!r.llegado, importePagado: Number(r.importe_pagado) || 0, mesaConoceA: r.mesa_conoce_a || '',
-    etiquetaImpresa: !!r.etiqueta_impresa
+    etiquetaImpresa: !!r.etiqueta_impresa,
+    palancasContacto1Email: r.palancas_contacto1_email || '', palancasContacto2Email: r.palancas_contacto2_email || '',
+    palancasEmailInvito: r.palancas_email_invito || '', familiaresDomingo: r.familiares_domingo || ''
   };
 }
 function inscripcionADB(i) {
@@ -102,7 +106,9 @@ function inscripcionADB(i) {
     palancas_necesita_transporte: !!i.palancasNecesitaTransporte, palancas_mesa: i.palancasMesa || '',
     palancas_asignado_a: i.palancasAsignadoA || null, palancas_contactado: !!i.palancasContactado,
     llegado: !!i.llegado, importe_pagado: Number(i.importePagado) || 0, mesa_conoce_a: i.mesaConoceA || '',
-    etiqueta_impresa: !!i.etiquetaImpresa
+    etiqueta_impresa: !!i.etiquetaImpresa,
+    palancas_contacto1_email: i.palancasContacto1Email || '', palancas_contacto2_email: i.palancasContacto2Email || '',
+    palancas_email_invito: i.palancasEmailInvito || '', familiares_domingo: i.familiaresDomingo || ''
   };
 }
 
@@ -536,7 +542,9 @@ const Store = {
       palancasQuienInvito: 'palancas_quien_invito', palancasTelefonoInvito: 'palancas_telefono_invito',
       palancasNecesitaTransporte: 'palancas_necesita_transporte', palancasMesa: 'palancas_mesa',
       palancasAsignadoA: 'palancas_asignado_a', palancasContactado: 'palancas_contactado',
-      llegado: 'llegado', importePagado: 'importe_pagado', mesaConoceA: 'mesa_conoce_a', etiquetaImpresa: 'etiqueta_impresa'
+      llegado: 'llegado', importePagado: 'importe_pagado', mesaConoceA: 'mesa_conoce_a', etiquetaImpresa: 'etiqueta_impresa',
+      palancasContacto1Email: 'palancas_contacto1_email', palancasContacto2Email: 'palancas_contacto2_email',
+      palancasEmailInvito: 'palancas_email_invito', familiaresDomingo: 'familiares_domingo'
     };
     for (const campo in mapaPalancas) if (campo in campos) camposDB[mapaPalancas[campo]] = i[campo];
     this._persist(sb.from('inscripciones').update(camposDB).eq('id', id), 'No se pudo actualizar la inscripción');

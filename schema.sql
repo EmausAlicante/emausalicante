@@ -44,7 +44,8 @@ create table if not exists contactos (
   contacto_emergencia_relacion text default '',
   parroquia_camino text default '',
   politica_aceptada boolean not null default false,
-  alergias text default ''
+  alergias text default '',
+  estado_civil text default ''
 );
 alter table contactos add column if not exists talla_polo text default '';
 alter table contactos add column if not exists ronca text default '';
@@ -56,6 +57,7 @@ alter table contactos add column if not exists contacto_emergencia_relacion text
 alter table contactos add column if not exists parroquia_camino text default '';
 alter table contactos add column if not exists politica_aceptada boolean not null default false;
 alter table contactos add column if not exists alergias text default '';
+alter table contactos add column if not exists estado_civil text default '';
 create index if not exists idx_contactos_zona on contactos(zona_id);
 create index if not exists idx_contactos_dni on contactos(upper(dni));
 create index if not exists idx_contactos_email on contactos(lower(email));
@@ -162,10 +164,18 @@ create table if not exists inscripciones (
   importe_pagado numeric not null default 0,
   mesa_conoce_a text default '',  -- texto libre: a qué otro/s caminante/s conoce (para NO sentarlos juntos)
   etiqueta_impresa boolean not null default false,
+  palancas_contacto1_email text default '',
+  palancas_contacto2_email text default '',
+  palancas_email_invito text default '',
+  familiares_domingo text default '',
   unique (retiro_id, contacto_id)
 );
 alter table inscripciones add column if not exists mesa_conoce_a text default '';
 alter table inscripciones add column if not exists etiqueta_impresa boolean not null default false;
+alter table inscripciones add column if not exists palancas_contacto1_email text default '';
+alter table inscripciones add column if not exists palancas_contacto2_email text default '';
+alter table inscripciones add column if not exists palancas_email_invito text default '';
+alter table inscripciones add column if not exists familiares_domingo text default '';
 alter table inscripciones add column if not exists palancas_contacto1_nombre text default '';
 alter table inscripciones add column if not exists palancas_contacto1_telefono text default '';
 alter table inscripciones add column if not exists palancas_contacto1_relacion text default '';
