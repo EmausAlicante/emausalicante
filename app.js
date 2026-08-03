@@ -14,6 +14,19 @@ function fmtCorto(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function edadDe(fechaNacimiento) {
+  if (!fechaNacimiento) return null;
+  const hoy = new Date(), n = new Date(fechaNacimiento);
+  let a = hoy.getFullYear() - n.getFullYear();
+  if (hoy.getMonth() < n.getMonth() || (hoy.getMonth() === n.getMonth() && hoy.getDate() < n.getDate())) a--;
+  return a;
+}
+
+function opcionesFormasPago(seleccionado) {
+  return `<option value="">— método —</option>` +
+    Store.db.formasPago.map(f => `<option ${seleccionado === f.nombre ? 'selected' : ''}>${esc(f.nombre)}</option>`).join('');
+}
+
 /* ---------- CSV: exportar/importar (soporta , o ; como separador, para Excel en español) ---------- */
 function csvStringify(cabeceras, filas) {
   const linea = campos => campos.map(v => {
@@ -616,7 +629,8 @@ const App = {
           companeroPreferido: buscar(f, 'dormir con algún servidor'),
           contactoEmergenciaNombre: buscar(f, 'Persona de contacto en caso de emergencia'),
           contactoEmergenciaTelefono: String(buscar(f, 'Teléfono 2') || '').trim(),
-          contactoEmergenciaRelacion: buscar(f, 'Relación (Esposa')
+          contactoEmergenciaRelacion: buscar(f, 'Relación (Esposa'),
+          politicaAceptada: String(buscar(f, 'Política privacidad', 'Política de privacidad')).trim().toLowerCase().startsWith('acepto')
         };
 
         const existente = Store.db.contactos.find(x =>
@@ -643,6 +657,7 @@ const App = {
         <div class="campo"><label>Nombre</label><input id="f-nombre" value="${esc(c.nombre)}" style="width:100%"></div>
         <div class="campo"><label>Apellidos</label><input id="f-apellidos" value="${esc(c.apellidos)}" style="width:100%"></div>
         <div class="campo"><label>DNI</label><input id="f-dni" value="${esc(c.dni)}" style="width:100%"></div>
+        <div class="campo"><label>Fecha de expedición del DNI</label><input id="f-expedicion-dni" type="date" value="${esc(c.fechaExpedicionDni)}" style="width:100%"></div>
         <div class="campo"><label>Fecha de nacimiento</label><input id="f-nacimiento" type="date" value="${esc(c.fechaNacimiento)}" style="width:100%"></div>
         <div class="campo"><label>Email</label><input id="f-email" type="email" value="${esc(c.email)}" style="width:100%"></div>
         <div class="campo"><label>Teléfono</label><input id="f-telefono" value="${esc(c.telefono)}" style="width:100%"></div>
@@ -652,6 +667,8 @@ const App = {
         <div class="campo"><label>Veces que sirvió antes de la app<br><small>(se suman a los retiros registrados aquí)</small></label>
           <input id="f-servicios-previos" type="number" min="0" value="${c.serviciosPrevios || 0}" style="width:100%"></div>
       </div>
+      <div class="campo"><label style="color:var(--rojo)">⚠️ Alergias (importante para el equipo de Cocina)</label>
+        <input id="f-alergias" value="${esc(c.alergias)}" placeholder="Ej. Frutos secos, marisco…" style="width:100%"></div>
       <details style="margin-top:12px">
         <summary style="cursor:pointer;font-weight:600">Más datos (alojamiento, emergencia, su propio camino)</summary>
         <div class="grid2" style="margin-top:10px">
@@ -663,6 +680,7 @@ const App = {
           <div class="campo"><label>Contacto de emergencia — nombre</label><input id="f-emerg-nombre" value="${esc(c.contactoEmergenciaNombre)}" style="width:100%"></div>
           <div class="campo"><label>Contacto de emergencia — teléfono</label><input id="f-emerg-telefono" value="${esc(c.contactoEmergenciaTelefono)}" style="width:100%"></div>
           <div class="campo"><label>Contacto de emergencia — relación</label><input id="f-emerg-relacion" value="${esc(c.contactoEmergenciaRelacion)}" style="width:100%"></div>
+          <div class="campo"><label class="check-linea"><input type="checkbox" id="f-politica" ${c.politicaAceptada ? 'checked' : ''}> Ha aceptado la política de privacidad</label></div>
         </div>
       </details>
       ${(() => {
@@ -712,13 +730,16 @@ const App = {
       id: id || undefined,
       nombre: v('f-nombre'), apellidos: v('f-apellidos'),
       dni: v('f-dni'), fechaNacimiento: v('f-nacimiento'),
+      fechaExpedicionDni: v('f-expedicion-dni') || null,
       email: v('f-email'), telefono: v('f-telefono'),
       zonaId: v('f-zona'), fechaRetiro: v('f-retiro') || null,
       serviciosPrevios: Math.max(0, parseInt(v('f-servicios-previos'), 10) || 0),
       parroquiaCamino: v('f-parroquia-camino'), tallaPolo: v('f-talla-polo'),
       ronca: v('f-ronca'), duermeConRoncador: v('f-duerme-roncador'),
       companeroPreferido: v('f-companero'), contactoEmergenciaNombre: v('f-emerg-nombre'),
-      contactoEmergenciaTelefono: v('f-emerg-telefono'), contactoEmergenciaRelacion: v('f-emerg-relacion')
+      contactoEmergenciaTelefono: v('f-emerg-telefono'), contactoEmergenciaRelacion: v('f-emerg-relacion'),
+      politicaAceptada: document.getElementById('f-politica').checked,
+      alergias: v('f-alergias')
     });
     document.getElementById('contactoDialog').close();
     this.render();
@@ -949,14 +970,14 @@ const App = {
         </td>
         <td style="white-space:nowrap">
           <label class="check-linea" style="margin:0 0 4px"><input type="checkbox" ${i.pagado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'pagado', this.checked, true)"> Pagado</label>
-          <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">
-            <option value="">— método —</option>
-            ${['Transferencia', 'Bizum', 'Efectivo', 'Otro'].map(m => `<option ${i.metodoPago === m ? 'selected' : ''}>${m}</option>`).join('')}
-          </select>
+          <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">${opcionesFormasPago(i.metodoPago)}</select>
+          <input type="number" min="0" step="0.01" value="${i.importePagado || 0}" title="Importe pagado (€)" style="width:80px;margin-top:4px" onchange="App.insCampo('${i.id}', 'importePagado', parseFloat(this.value)||0, true)">
+          ${i.papel === 'caminante' ? `<label class="check-linea" style="margin:4px 0 0"><input type="checkbox" ${i.llegado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'llegado', this.checked, true)"> Ha llegado</label>` : ''}
         </td>
         <td><input value="${esc(i.notas)}" placeholder="Notas…" onchange="App.insCampo('${i.id}', 'notas', this.value)" style="width:140px"></td>
         <td>
           ${i.detalles ? `<button class="btn mini secundario" onclick="App.verFichaInscripcion('${i.id}')">Ficha</button>` : ''}
+          ${i.papel === 'caminante' ? `<button class="btn mini secundario" onclick="App.dialogoPalancas('${i.id}')">🕊️ Palancas</button>` : ''}
           <button class="btn mini peligro" onclick="App.quitarInscripcion('${i.id}')">Quitar</button>
         </td>
       </tr>`;
@@ -964,9 +985,17 @@ const App = {
     const pagados = inscripciones.filter(i => i.pagado).length;
 
     const yaInscritos = inscripciones.map(i => i.contactoId);
-    const candidatos = Store.contactosDeZona(r.zonaId).filter(c => !yaInscritos.includes(c.id));
-    const opcionesIns = candidatos.map(c =>
-      `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)} (${Store.tipo(c)})</option>`).join('');
+    // Normalmente solo se apunta gente de la propia zona, pero se permite cualquier zona
+    // para casos excepcionales (ej. un retiro combinado entre dos zonas).
+    const candidatosZona = Store.contactosDeZona(r.zonaId).filter(c => !yaInscritos.includes(c.id));
+    const candidatosOtrasZonas = Store.db.contactos.filter(c => c.zonaId !== r.zonaId && !yaInscritos.includes(c.id));
+    const candidatos = candidatosZona.concat(candidatosOtrasZonas);
+    const opcionesIns = (candidatosZona.length ? `<optgroup label="${esc(zona?.nombre || 'Esta zona')}">` : '') +
+      candidatosZona.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)} (${Store.tipo(c)})</option>`).join('') +
+      (candidatosZona.length ? '</optgroup>' : '') +
+      (candidatosOtrasZonas.length ? '<optgroup label="Otras zonas (caso excepcional)">' : '') +
+      candidatosOtrasZonas.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)} (${Store.tipo(c)}) — ${esc(Store.zona(c.zonaId)?.nombre || '')}</option>`).join('') +
+      (candidatosOtrasZonas.length ? '</optgroup>' : '');
 
     /* --- Acciones --- */
     const acciones = Store.accionesDe(r.id).sort((a, b) => (a.fechaLimite || '9999').localeCompare(b.fechaLimite || '9999'));
@@ -1126,7 +1155,694 @@ const App = {
         <h3>✉️ Cartas a los caminantes</h3>
         <p class="nota">Las cartas se reciben desde antes del retiro y durante la preparación, hasta el día de en medio (<strong>${diaEnMedio}</strong>). Recuerda pedir que en el asunto del email conste a qué caminante va cada carta.</p>
         ${caminantesRetiro.length ? `<table><thead><tr><th>Caminante</th><th>Cartas</th><th></th></tr></thead><tbody>${filasCartas}</tbody></table>` : '<div class="vacio">Todavía no hay caminantes inscritos en este retiro.</div>'}
+      </div>
+
+      ${this.bloqueEquipoPalancas(r)}
+      ${this.bloqueMesas(r)}
+      ${this.bloqueHabitaciones(r, 'caminante', 'Habitaciones · Caminantes')}
+      ${this.bloqueHabitaciones(r, 'servidor', 'Habitaciones · Servidores')}
+      ${this.bloqueEquipoAdministracion(r)}
+      ${this.bloqueListaAdministracion(r)}
+      ${this.bloqueEquipoCocina(r)}
+      ${this.bloqueListaAlergias(r)}
+      ${this.bloqueEtiquetas(r)}
+      ${this.bloquePrograma(r)}`;
+  },
+
+  /* ---------- Etiquetas para colgadores: responsable + checklist + impresión real ---------- */
+  bloqueEtiquetas(r) {
+    const inscritos = Store.inscripcionesDe(r.id);
+    const responsableId = Store.responsableTarea(r.id, 'etiquetas');
+    const candidatos = inscritos.map(i => Store.contacto(i.contactoId)).filter(Boolean);
+    const impresas = inscritos.filter(i => i.etiquetaImpresa).length;
+
+    const filas = inscritos.map(i => {
+      const c = Store.contacto(i.contactoId);
+      if (!c) return '';
+      return `<tr>
+        <td>${esc(c.nombre)} ${esc(c.apellidos)}</td>
+        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
+        <td><label class="check-linea" style="margin:0"><input type="checkbox" ${i.etiquetaImpresa ? 'checked' : ''} onchange="App.insCampo('${i.id}','etiquetaImpresa',this.checked,true)"> Impresa</label></td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="tarjeta">
+        <div class="acciones-linea" style="justify-content:space-between">
+          <h3 style="margin:0">🏷️ Etiquetas para colgadores</h3>
+          ${inscritos.length ? `<button class="btn secundario mini" onclick="App.imprimirEtiquetas('${r.id}')">🖨️ Imprimir etiquetas</button>` : ''}
+        </div>
+        <p class="nota">Etiqueta con nombre y papel de cada caminante y servidor, para meter en los colgadores. Marca aquí quién ya está impresa y lista.</p>
+        <div class="campo"><label>Responsable de esta tarea</label>
+          <select onchange="App.setResponsableTarea('${r.id}','etiquetas',this.value)">
+            <option value="">— sin asignar —</option>
+            ${candidatos.map(c => `<option value="${c.id}" ${responsableId === c.id ? 'selected' : ''}>${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}
+          </select>
+        </div>
+        ${inscritos.length ? `
+          <p class="nota"><strong>${impresas}/${inscritos.length} impresas</strong></p>
+          <table><thead><tr><th>Nombre</th><th>Papel</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+          : '<div class="vacio">Sin inscritos todavía.</div>'}
       </div>`;
+  },
+
+  setResponsableTarea(retiroId, tarea, contactoId) {
+    Store.setResponsableTarea(retiroId, tarea, contactoId || null);
+    this.render();
+  },
+
+  imprimirEtiquetas(retiroId) {
+    const r = Store.retiro(retiroId);
+    const zona = Store.zona(r?.zonaId);
+    const inscritos = Store.inscripcionesDe(retiroId);
+    const tarjetas = inscritos.map(i => {
+      const c = Store.contacto(i.contactoId);
+      if (!c) return '';
+      return `<div class="etiqueta">
+        <div class="etiqueta-nombre">${esc(c.nombre)}</div>
+        <div class="etiqueta-apellidos">${esc(c.apellidos)}</div>
+        <div class="etiqueta-papel">${i.papel === 'servidor' ? 'SIRVE' : 'CAMINANTE'}</div>
+        <div class="etiqueta-retiro">${esc(r?.nombre || '')}</div>
+      </div>`;
+    }).join('');
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+      <html><head><title>Etiquetas · ${esc(r?.nombre || '')}</title>
+      <style>
+        @page { margin: 10mm; }
+        body{font-family:sans-serif;margin:0}
+        .hoja{display:grid;grid-template-columns:1fr 1fr;gap:6mm}
+        .etiqueta{
+          border:1px dashed #999;border-radius:8px;padding:10mm 6mm;
+          width:90mm;height:55mm;box-sizing:border-box;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+          page-break-inside:avoid;
+        }
+        .etiqueta-nombre{font-size:22pt;font-weight:700}
+        .etiqueta-apellidos{font-size:16pt;margin-bottom:8px}
+        .etiqueta-papel{font-size:11pt;letter-spacing:2px;color:#555;margin-top:6px}
+        .etiqueta-retiro{font-size:9pt;color:#999;margin-top:4px}
+      </style>
+      </head><body><div class="hoja">${tarjetas}</div></body></html>`);
+    ventana.document.close();
+    ventana.print();
+  },
+
+  /* ---------- Equipo de Cocina: responsable + ayudantes (organizan comidas y conocen las alergias) ---------- */
+  bloqueEquipoCocina(r) {
+    const inscritosServidor = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').map(i => Store.contacto(i.contactoId)).filter(Boolean);
+    const equipo = Store.equipoCocinaDe(r.id);
+    const libres = inscritosServidor.filter(c => c.id !== equipo.responsable && !equipo.ayudantes.includes(c.id));
+    const nombreDe = id => { const c = Store.contacto(id); return c ? `${c.nombre} ${c.apellidos}` : '—'; };
+
+    return `
+      <div class="tarjeta">
+        <h3>🍳 Equipo de Cocina</h3>
+        <p class="nota">Organizan comidas, cenas y descansos, y deben conocer las alergias de todos los inscritos (ver lista debajo). Responsable y ayudantes deben estar ya inscritos como servidores en este retiro.</p>
+        <div class="campo"><label>Responsable</label>
+          <select onchange="App.setResponsableCocina('${r.id}', this.value)">
+            <option value="">— sin asignar —</option>
+            ${inscritosServidor.map(c => `<option value="${c.id}" ${equipo.responsable === c.id ? 'selected' : ''}>${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="campo"><label>Ayudantes</label>
+          <div class="acciones-linea">
+            ${equipo.ayudantes.map(id => `<span class="badge servidor">${esc(nombreDe(id))} <a href="#" onclick="event.preventDefault();App.quitarDeCocina('${r.id}','${id}')" style="margin-left:6px">✕</a></span>`).join('') || '<span class="vacio">Sin ayudantes todavía.</span>'}
+          </div>
+          ${libres.length ? `<div class="acciones-linea" style="margin-top:8px">
+            <select id="cocina-ayudante-${r.id}">${libres.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}</select>
+            <button class="btn mini secundario" onclick="App.agregarAyudanteCocina('${r.id}')">+ Añadir ayudante</button>
+          </div>` : ''}
+        </div>
+      </div>`;
+  },
+
+  setResponsableCocina(retiroId, contactoId) {
+    if (contactoId) {
+      const tarea = this.esLiderOColiderDeMesa(retiroId, contactoId);
+      if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como responsable de Cocina?`)) return;
+    }
+    Store.asignarResponsableCocina(retiroId, contactoId || null);
+    this.render();
+  },
+  agregarAyudanteCocina(retiroId) {
+    const sel = document.getElementById(`cocina-ayudante-${retiroId}`);
+    if (!sel || !sel.value) return;
+    const tarea = this.esLiderOColiderDeMesa(retiroId, sel.value);
+    if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como ayudante de Cocina?`)) return;
+    Store.agregarAyudanteCocina(retiroId, sel.value);
+    this.render();
+  },
+  quitarDeCocina(retiroId, contactoId) {
+    Store.quitarDeCocina(retiroId, contactoId);
+    this.render();
+  },
+
+  /* ---------- Lista de alergias: caminantes + servidores de este retiro que tengan alguna anotada ---------- */
+  bloqueListaAlergias(r) {
+    const inscritos = Store.inscripcionesDe(r.id);
+    const filas = inscritos.map(i => {
+      const c = Store.contacto(i.contactoId);
+      if (!c || !c.alergias) return null;
+      return { nombre: c.nombre, apellidos: c.apellidos, papel: i.papel, alergias: c.alergias };
+    }).filter(Boolean).sort((a, b) => (a.apellidos || '').localeCompare(b.apellidos || '', 'es'));
+
+    const filasHtml = filas.map(f => `<tr>
+        <td>${esc(f.nombre)} ${esc(f.apellidos)}</td>
+        <td><span class="badge ${f.papel}">${f.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
+        <td>⚠️ ${esc(f.alergias)}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="tarjeta">
+        <div class="acciones-linea" style="justify-content:space-between">
+          <h3 style="margin:0">⚠️ Lista de alergias (${filas.length})</h3>
+          ${filas.length ? `<button class="btn secundario mini" onclick="App.imprimirListaAlergias('${r.id}')">🖨️ Imprimir</button>` : ''}
+        </div>
+        <p class="nota">Para el equipo de Cocina: caminantes y servidores inscritos en este retiro que tienen alguna alergia anotada en su ficha.</p>
+        ${filas.length ? `<table id="lista-alergias-${r.id}"><thead><tr><th>Nombre</th><th>Papel</th><th>Alergia</th></tr></thead><tbody>${filasHtml}</tbody></table>` : '<div class="vacio">Nadie ha anotado alergias todavía.</div>'}
+      </div>`;
+  },
+
+  imprimirListaAlergias(retiroId) {
+    const r = Store.retiro(retiroId);
+    const tabla = document.getElementById(`lista-alergias-${retiroId}`);
+    if (!tabla) return;
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+      <html><head><title>Lista de alergias · ${esc(r?.nombre || '')}</title>
+      <style>body{font-family:sans-serif;padding:24px} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ccc;padding:6px 10px;text-align:left;font-size:14px}</style>
+      </head><body><h2>${esc(r?.nombre || '')} — Lista de alergias</h2>${tabla.outerHTML}</body></html>`);
+    ventana.document.close();
+    ventana.print();
+  },
+
+  /* ---------- Programa del retiro (minuto a minuto): reutiliza Actividades, ligadas a este retiro ---------- */
+  bloquePrograma(r) {
+    const puntos = Store.db.actividades.filter(a => a.retiroId === r.id)
+      .sort((a, b) => a.fecha === b.fecha ? a.hora.localeCompare(b.hora) : a.fecha.localeCompare(b.fecha));
+    const filas = puntos.map(a => `
+      <div class="acciones-linea" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee">
+        <span><strong>${fmtCorto(a.fecha)}${a.hora ? ' · ' + esc(a.hora) : ''}</strong> — ${esc(a.titulo)}${a.lugar ? ' <span class="nota">(' + esc(a.lugar) + ')</span>' : ''}</span>
+        <span class="acciones-linea" style="margin:0">
+          <button class="btn mini secundario" onclick="App.dialogoActividad('${a.id}')">Editar</button>
+          <button class="btn mini peligro" onclick="App.borrarActividad('${a.id}')">Eliminar</button>
+        </span>
+      </div>`).join('');
+
+    return `
+      <div class="tarjeta">
+        <div class="acciones-linea" style="justify-content:space-between">
+          <h3 style="margin:0">🕐 Programa del retiro</h3>
+          <button class="btn mini" onclick="App.dialogoActividad(null, '${r.id}')">+ Añadir al programa</button>
+        </div>
+        <p class="nota">Cada punto (Administración, comidas, charlas, tercer tiempo…) con su día y hora — así se va formando el minuto a minuto.</p>
+        ${puntos.length ? filas : '<div class="vacio">Todavía no hay nada en el programa.</div>'}
+      </div>`;
+  },
+
+  /* ---------- Equipo de Administración: hasta 2 responsables + ayudantes que acompañan a los caminantes ---------- */
+  bloqueEquipoAdministracion(r) {
+    const servidores = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').map(i => Store.contacto(i.contactoId)).filter(Boolean);
+    const equipo = Store.equipoAdministracionDe(r.id);
+    const ocupados = new Set([...equipo.responsables, ...equipo.ayudantes]);
+    const libres = servidores.filter(c => !ocupados.has(c.id));
+    const nombreDe = id => { const c = Store.contacto(id); return c ? `${c.nombre} ${c.apellidos}` : '—'; };
+
+    return `
+      <div class="tarjeta">
+        <h3>🗂️ Equipo de Administración</h3>
+        <p class="nota">Hasta 2 responsables + los servidores que acompañan a los caminantes a sus habitaciones. Todos deben estar ya inscritos como servidores en este retiro.</p>
+        <div class="campo"><label>Responsables (máx. 2)</label>
+          <div class="acciones-linea">
+            ${equipo.responsables.map(id => `<span class="badge sirve">${esc(nombreDe(id))} <a href="#" onclick="event.preventDefault();App.quitarDeAdministracion('${r.id}','${id}')" style="margin-left:6px">✕</a></span>`).join('') || '<span class="vacio">Sin responsables todavía.</span>'}
+          </div>
+          ${libres.length && equipo.responsables.length < 2 ? `<div class="acciones-linea" style="margin-top:8px">
+            <select id="admin-resp-${r.id}">${libres.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}</select>
+            <button class="btn mini secundario" onclick="App.agregarResponsableAdministracion('${r.id}')">+ Añadir responsable</button>
+          </div>` : ''}
+        </div>
+        <div class="campo"><label>Ayudantes (acompañan a las habitaciones)</label>
+          <div class="acciones-linea">
+            ${equipo.ayudantes.map(id => `<span class="badge servidor">${esc(nombreDe(id))} <a href="#" onclick="event.preventDefault();App.quitarDeAdministracion('${r.id}','${id}')" style="margin-left:6px">✕</a></span>`).join('') || '<span class="vacio">Sin ayudantes todavía.</span>'}
+          </div>
+          ${libres.length ? `<div class="acciones-linea" style="margin-top:8px">
+            <select id="admin-ayud-${r.id}">${libres.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}</select>
+            <button class="btn mini secundario" onclick="App.agregarAyudanteAdministracion('${r.id}')">+ Añadir ayudante</button>
+          </div>` : ''}
+        </div>
+      </div>`;
+  },
+
+  agregarResponsableAdministracion(retiroId) {
+    const sel = document.getElementById(`admin-resp-${retiroId}`);
+    if (!sel || !sel.value) return;
+    const equipo = Store.equipoAdministracionDe(retiroId);
+    if (equipo.responsables.length >= 2) { alert('Ya hay 2 responsables asignados.'); return; }
+    const tarea = this.esLiderOColiderDeMesa(retiroId, sel.value);
+    if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como responsable de Administración?`)) return;
+    Store.agregarAAdministracion(retiroId, sel.value, 'responsable');
+    this.render();
+  },
+  agregarAyudanteAdministracion(retiroId) {
+    const sel = document.getElementById(`admin-ayud-${retiroId}`);
+    if (!sel || !sel.value) return;
+    const tarea = this.esLiderOColiderDeMesa(retiroId, sel.value);
+    if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como ayudante de Administración?`)) return;
+    Store.agregarAAdministracion(retiroId, sel.value, 'ayudante');
+    this.render();
+  },
+  quitarDeAdministracion(retiroId, contactoId) {
+    Store.quitarDeAdministracion(retiroId, contactoId);
+    this.render();
+  },
+
+  /* ---------- Lista de control de Administración: caminantes con teléfono, si deben y su habitación ---------- */
+  bloqueListaAdministracion(r) {
+    const inscripciones = Store.inscripcionesDe(r.id).filter(i => i.papel === 'caminante');
+    const precio = Number(r.precio) || 0;
+    const filas = inscripciones.map(i => {
+      const c = Store.contacto(i.contactoId);
+      if (!c) return null;
+      const hab = Store.habitacionDeContacto(r.id, c.id);
+      const debe = Math.max(0, precio - (i.importePagado || 0));
+      return { ins: i, nombre: c.nombre, apellidos: c.apellidos, telefono: c.telefono || '', debe, habitacion: hab ? hab.nombre : '' };
+    }).filter(Boolean).sort((a, b) => (a.apellidos || '').localeCompare(b.apellidos || '', 'es'));
+
+    const filasHtml = filas.map(f => `<tr>
+        <td>${esc(f.nombre)} ${esc(f.apellidos)}</td>
+        <td>${esc(f.telefono) || '—'}</td>
+        <td><label class="check-linea" style="margin:0"><input type="checkbox" ${f.ins.llegado ? 'checked' : ''} onchange="App.insCampo('${f.ins.id}','llegado',this.checked,true)"> Ha llegado</label></td>
+        <td>
+          <label class="check-linea" style="margin:0 0 4px"><input type="checkbox" ${f.ins.pagado ? 'checked' : ''} onchange="App.insCampo('${f.ins.id}','pagado',this.checked,true)"> Pagado</label>
+          ${f.debe > 0 ? `<span class="badge pendiente">Debe ${f.debe.toFixed(2)} €</span>` : '<span class="badge abierto">Al día</span>'}
+        </td>
+        <td>${esc(f.habitacion) || '<span class="vacio">sin asignar</span>'}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="tarjeta">
+        <div class="acciones-linea" style="justify-content:space-between">
+          <h3 style="margin:0">📋 Lista de Administración · Caminantes (${filas.length})</h3>
+          ${filas.length ? `<div class="acciones-linea" style="margin:0">
+            <button class="btn secundario mini" onclick="App.exportarListaAdministracionCSV('${r.id}')">⬇ Exportar CSV</button>
+            <button class="btn secundario mini" onclick="App.imprimirListaAdministracion('${r.id}')">🖨️ Imprimir</button>
+          </div>` : ''}
+        </div>
+        <p class="nota">Para el equipo de Administración: marca si ha llegado y si ha pagado (el importe exacto se ajusta en Inscripciones), y la habitación asignada.</p>
+        ${filas.length ? `<table id="lista-admin-${r.id}"><thead><tr><th>Nombre</th><th>Teléfono</th><th>Llegada</th><th>Pago</th><th>Habitación</th></tr></thead><tbody>${filasHtml}</tbody></table>` : '<div class="vacio">Sin caminantes inscritos todavía.</div>'}
+      </div>`;
+  },
+
+  exportarListaAdministracionCSV(retiroId) {
+    const r = Store.retiro(retiroId);
+    const precio = Number(r?.precio) || 0;
+    const inscripciones = Store.inscripcionesDe(retiroId).filter(i => i.papel === 'caminante');
+    const filas = inscripciones.map(i => {
+      const c = Store.contacto(i.contactoId);
+      if (!c) return null;
+      const hab = Store.habitacionDeContacto(retiroId, c.id);
+      const debe = Math.max(0, precio - (i.importePagado || 0));
+      return [c.nombre, c.apellidos, c.telefono || '', i.llegado ? 'Sí' : 'No', i.pagado ? 'Pagado' : `Debe ${debe.toFixed(2)} €`, hab ? hab.nombre : ''];
+    }).filter(Boolean).sort((a, b) => a[1].localeCompare(b[1], 'es'));
+    descargarCSV(`administracion-${(r?.nombre || 'retiro').replace(/[^a-z0-9]+/gi, '-')}.csv`,
+      ['nombre', 'apellidos', 'telefono', 'ha_llegado', 'pago', 'habitacion'], filas);
+  },
+
+  imprimirListaAdministracion(retiroId) {
+    const r = Store.retiro(retiroId);
+    const tabla = document.getElementById(`lista-admin-${retiroId}`);
+    if (!tabla) return;
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+      <html><head><title>Lista de Administración · ${esc(r?.nombre || '')}</title>
+      <style>body{font-family:sans-serif;padding:24px} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ccc;padding:6px 10px;text-align:left;font-size:14px}</style>
+      </head><body><h2>${esc(r?.nombre || '')} — Lista de Administración</h2>${tabla.outerHTML}</body></html>`);
+    ventana.document.close();
+    ventana.print();
+  },
+
+  /* ---------- Equipo de Palancas: responsable + ayudantes (servidores inscritos en ESTE retiro) ---------- */
+  bloqueEquipoPalancas(r) {
+    const servidores = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').map(i => Store.contacto(i.contactoId)).filter(Boolean);
+    const equipo = Store.equipoPalancasDe(r.id);
+    const libres = servidores.filter(c => c.id !== equipo.responsable && !equipo.ayudantes.includes(c.id));
+    const nombreDe = id => { const c = Store.contacto(id); return c ? `${c.nombre} ${c.apellidos}` : '—'; };
+    const inscripcionesCaminantes = Store.inscripcionesDe(r.id).filter(i => i.papel === 'caminante');
+    const miembros = [equipo.responsable, ...equipo.ayudantes].filter(Boolean);
+
+    const filasMiembros = miembros.map(mId => {
+      const miembro = Store.contacto(mId);
+      if (!miembro) return '';
+      const asignados = inscripcionesCaminantes.filter(i => i.palancasAsignadoA === mId);
+      const contactados = asignados.filter(i => i.palancasContactado).length;
+      return `
+        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
+          <div class="acciones-linea" style="justify-content:space-between">
+            <strong>${esc(miembro.nombre)} ${esc(miembro.apellidos)}</strong>
+            <span class="nota">${contactados}/${asignados.length} contactados</span>
+          </div>
+          ${asignados.length ? asignados.map(i => {
+            const cam = Store.contacto(i.contactoId);
+            return cam ? `<label class="check-linea" style="margin:4px 0"><input type="checkbox" ${i.palancasContactado ? 'checked' : ''} onchange="App.insCampo('${i.id}','palancasContactado',this.checked,true)"> ${esc(cam.nombre)} ${esc(cam.apellidos)}</label>` : '';
+          }).join('') : '<div class="vacio">Sin caminantes asignados todavía (asígnalos desde la ficha de Palancas de cada uno).</div>'}
+          ${asignados.length && miembro.telefono ? `<div class="acciones-linea" style="margin-top:8px">
+            <button class="btn mini secundario" onclick="App.enviarPalancasWhatsapp('${r.id}','${mId}')">📲 Enviar lista por WhatsApp</button>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="tarjeta">
+        <h3>🕊️ Equipo de Palancas</h3>
+        <p class="nota">El responsable y los ayudantes deben estar ya inscritos como servidores en este retiro.</p>
+        <div class="campo"><label>Responsable</label>
+          <select onchange="App.setResponsablePalancas('${r.id}', this.value)">
+            <option value="">— sin asignar —</option>
+            ${servidores.map(c => `<option value="${c.id}" ${equipo.responsable === c.id ? 'selected' : ''}>${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="campo"><label>Ayudantes</label>
+          <div class="acciones-linea">
+            ${equipo.ayudantes.map(id => `<span class="badge servidor">${esc(nombreDe(id))} <a href="#" onclick="event.preventDefault();App.quitarDePalancas('${r.id}','${id}')" style="margin-left:6px">✕</a></span>`).join('') || '<span class="vacio">Sin ayudantes todavía.</span>'}
+          </div>
+          ${libres.length ? `<div class="acciones-linea" style="margin-top:8px">
+            <select id="palancas-ayudante-${r.id}">${libres.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}</select>
+            <button class="btn mini secundario" onclick="App.agregarAyudantePalancas('${r.id}')">+ Añadir ayudante</button>
+          </div>` : ''}
+        </div>
+        ${miembros.length ? `<hr class="sep"><p class="nota"><strong>Reparto de llamadas</strong> — asigna cada caminante a un miembro desde su ficha "🕊️ Palancas", y aquí puedes marcar quién ya ha sido contactado y enviar la lista por WhatsApp.</p>${filasMiembros}` : ''}
+      </div>`;
+  },
+
+  enviarPalancasWhatsapp(retiroId, miembroId) {
+    const r = Store.retiro(retiroId);
+    const miembro = Store.contacto(miembroId);
+    if (!r || !miembro || !miembro.telefono) return;
+    const asignados = Store.inscripcionesDe(retiroId).filter(i => i.papel === 'caminante' && i.palancasAsignadoA === miembroId);
+    if (!asignados.length) return;
+    let msg = `Hola ${miembro.nombre}, aquí tienes tu lista de Palancas del retiro "${r.nombre}":\n\n`;
+    asignados.forEach((i, idx) => {
+      const c = Store.contacto(i.contactoId);
+      if (!c) return;
+      msg += `${idx + 1}) ${c.nombre} ${c.apellidos}${c.telefono ? ' — ' + c.telefono : ''}\n`;
+      if (i.palancasContacto1Nombre) msg += `   Contacto 1: ${i.palancasContacto1Nombre}${i.palancasContacto1Telefono ? ' — ' + i.palancasContacto1Telefono : ''}${i.palancasContacto1Relacion ? ' (' + i.palancasContacto1Relacion + ')' : ''}\n`;
+      if (i.palancasContacto2Nombre) msg += `   Contacto 2: ${i.palancasContacto2Nombre}${i.palancasContacto2Telefono ? ' — ' + i.palancasContacto2Telefono : ''}${i.palancasContacto2Relacion ? ' (' + i.palancasContacto2Relacion + ')' : ''}\n`;
+      if (i.palancasQuienInvito) msg += `   Le invitó: ${i.palancasQuienInvito}${i.palancasTelefonoInvito ? ' — ' + i.palancasTelefonoInvito : ''}\n`;
+      msg += `\n`;
+    });
+    msg += `Cuando llames a cada uno, marca su check en la app. ¡Gracias! 🕊️`;
+    const tel = miembro.telefono.replace(/[^\d]/g, '');
+    const telConPrefijo = tel.length === 9 ? '34' + tel : tel;
+    window.open(`https://wa.me/${telConPrefijo}?text=${encodeURIComponent(msg)}`, '_blank');
+  },
+
+  esLiderOColiderDeMesa(retiroId, contactoId) {
+    const m = Store.mesasDe(retiroId).find(x => x.liderContactoId === contactoId || x.coliderContactoId === contactoId);
+    if (!m) return null;
+    return m.liderContactoId === contactoId ? `líder de mesa (${m.nombre || 'sin nombre'})` : `colíder de mesa (${m.nombre || 'sin nombre'})`;
+  },
+
+  setResponsablePalancas(retiroId, contactoId) {
+    if (contactoId) {
+      const tarea = this.esLiderOColiderDeMesa(retiroId, contactoId);
+      if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como responsable de Palancas?`)) return;
+    }
+    Store.asignarResponsablePalancas(retiroId, contactoId || null);
+    this.render();
+  },
+  agregarAyudantePalancas(retiroId) {
+    const sel = document.getElementById(`palancas-ayudante-${retiroId}`);
+    if (!sel || !sel.value) return;
+    const tarea = this.esLiderOColiderDeMesa(retiroId, sel.value);
+    if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como ayudante de Palancas?`)) return;
+    Store.agregarAyudantePalancas(retiroId, sel.value);
+    this.render();
+  },
+  quitarDePalancas(retiroId, contactoId) {
+    Store.quitarDePalancas(retiroId, contactoId);
+    this.render();
+  },
+
+  /* ---------- Ficha de Palancas de un caminante concreto ---------- */
+  dialogoPalancas(insId) {
+    const i = Store.db.inscripciones.find(x => x.id === insId);
+    const c = i && Store.contacto(i.contactoId);
+    if (!i || !c) return;
+    const equipo = Store.equipoPalancasDe(i.retiroId);
+    const miembros = [equipo.responsable, ...equipo.ayudantes].filter(Boolean).map(id => Store.contacto(id)).filter(Boolean);
+    const d = document.getElementById('contactoDialog');
+    d.innerHTML = `
+      <h3 style="margin-top:0">🕊️ Palancas — ${esc(c.nombre)} ${esc(c.apellidos)}</h3>
+      <div class="grid2">
+        <div class="campo"><label>Contacto 1 — nombre</label><input id="pal-c1-nombre" value="${esc(i.palancasContacto1Nombre)}" style="width:100%"></div>
+        <div class="campo"><label>Contacto 1 — teléfono</label><input id="pal-c1-tel" value="${esc(i.palancasContacto1Telefono)}" style="width:100%"></div>
+        <div class="campo"><label>Contacto 1 — relación</label><input id="pal-c1-rel" value="${esc(i.palancasContacto1Relacion)}" style="width:100%"></div>
+        <div class="campo"><label>Contacto 2 — nombre</label><input id="pal-c2-nombre" value="${esc(i.palancasContacto2Nombre)}" style="width:100%"></div>
+        <div class="campo"><label>Contacto 2 — teléfono</label><input id="pal-c2-tel" value="${esc(i.palancasContacto2Telefono)}" style="width:100%"></div>
+        <div class="campo"><label>Contacto 2 — relación</label><input id="pal-c2-rel" value="${esc(i.palancasContacto2Relacion)}" style="width:100%"></div>
+        <div class="campo"><label>¿Quién le invitó al retiro?</label><input id="pal-invito" value="${esc(i.palancasQuienInvito)}" style="width:100%"></div>
+        <div class="campo"><label>Teléfono de quien le invitó</label><input id="pal-invito-tel" value="${esc(i.palancasTelefonoInvito)}" style="width:100%"></div>
+        <div class="campo"><label>Mesa</label><input id="pal-mesa" value="${esc(i.palancasMesa)}" style="width:100%"></div>
+        <div class="campo" style="align-self:center"><label class="check-linea"><input type="checkbox" id="pal-transporte" ${i.palancasNecesitaTransporte ? 'checked' : ''}> Necesita transporte</label></div>
+        <div class="campo"><label>Asignado a (del equipo de Palancas)</label>
+          <select id="pal-asignado">
+            <option value="">— sin asignar —</option>
+            ${miembros.map(m => `<option value="${m.id}" ${i.palancasAsignadoA === m.id ? 'selected' : ''}>${esc(m.nombre)} ${esc(m.apellidos)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="campo" style="align-self:center"><label class="check-linea"><input type="checkbox" id="pal-contactado" ${i.palancasContactado ? 'checked' : ''}> Ya contactado ✔</label></div>
+        <div class="campo"><label>¿Conoce a otro caminante de este retiro? <small>(para NO sentarlos en la misma mesa)</small></label><input id="pal-conoce" value="${esc(i.mesaConoceA)}" placeholder="Nombre del caminante que conoce" style="width:100%"></div>
+      </div>
+      <div class="dialog-pie">
+        <div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn secundario" onclick="document.getElementById('contactoDialog').close()">Cancelar</button>
+          <button class="btn" onclick="App.guardarPalancas('${insId}')">Guardar</button>
+        </div>
+      </div>`;
+    d.showModal();
+  },
+
+  guardarPalancas(insId) {
+    const v = x => document.getElementById(x).value.trim();
+    Store.actualizarInscripcion(insId, {
+      palancasContacto1Nombre: v('pal-c1-nombre'), palancasContacto1Telefono: v('pal-c1-tel'), palancasContacto1Relacion: v('pal-c1-rel'),
+      palancasContacto2Nombre: v('pal-c2-nombre'), palancasContacto2Telefono: v('pal-c2-tel'), palancasContacto2Relacion: v('pal-c2-rel'),
+      palancasQuienInvito: v('pal-invito'), palancasTelefonoInvito: v('pal-invito-tel'), palancasMesa: v('pal-mesa'),
+      palancasNecesitaTransporte: document.getElementById('pal-transporte').checked,
+      palancasAsignadoA: v('pal-asignado') || null,
+      palancasContactado: document.getElementById('pal-contactado').checked,
+      mesaConoceA: v('pal-conoce')
+    });
+    document.getElementById('contactoDialog').close();
+    this.render();
+  },
+
+  /* ---------- Habitaciones ---------- */
+  /* ---------- Mesas: líder + colíder de mesa (servidores del retiro) + 3-4 caminantes ---------- */
+  bloqueMesas(r) {
+    const servidores = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').map(i => Store.contacto(i.contactoId)).filter(Boolean);
+    const caminantesIns = Store.inscripcionesDe(r.id).filter(i => i.papel === 'caminante');
+    const mesas = Store.mesasDe(r.id);
+    const asignadoId = c => Store.mesaDeCaminante(r.id, c.id)?.id || '';
+    const conoceDe = contactoId => caminantesIns.find(i => i.contactoId === contactoId)?.mesaConoceA || '';
+
+    const tarjetasMesa = mesas.map(m => {
+      const caminantesMesa = Store.caminantesDeMesa(m.id);
+      const disponibles = caminantesIns.map(i => Store.contacto(i.contactoId)).filter(Boolean).filter(c => asignadoId(c) !== m.id);
+      const lider = m.liderContactoId ? Store.contacto(m.liderContactoId) : null;
+      const colider = m.coliderContactoId ? Store.contacto(m.coliderContactoId) : null;
+      return `
+        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
+          <div class="acciones-linea" style="justify-content:space-between">
+            <strong>${esc(m.nombre) || 'Sin nombre'}</strong>
+            <button class="btn mini peligro" onclick="App.borrarMesa('${r.id}','${m.id}')">Eliminar mesa</button>
+          </div>
+          <div class="grid2" style="margin-top:8px">
+            <div class="campo"><label>Líder de mesa</label>
+              <select onchange="App.setLiderMesa('${r.id}','${m.id}',this.value)">
+                <option value="">— sin asignar —</option>
+                ${servidores.map(s => `<option value="${s.id}" ${m.liderContactoId === s.id ? 'selected' : ''}>${esc(s.nombre)} ${esc(s.apellidos)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="campo"><label>Colíder de mesa</label>
+              <select onchange="App.setColiderMesa('${r.id}','${m.id}',this.value)">
+                <option value="">— sin asignar —</option>
+                ${servidores.map(s => `<option value="${s.id}" ${m.coliderContactoId === s.id ? 'selected' : ''}>${esc(s.nombre)} ${esc(s.apellidos)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <p class="nota" style="margin:8px 0 4px"><strong>Caminantes (${caminantesMesa.length}/4):</strong></p>
+          ${caminantesMesa.map(c => `<div class="acciones-linea" style="margin-top:4px">
+              <span style="flex:1">${esc(c.nombre)} ${esc(c.apellidos)}${conoceDe(c.id) ? ` <span class="nota">(conoce a: ${esc(conoceDe(c.id))})</span>` : ''}</span>
+              <button class="btn mini secundario" onclick="App.quitarDeMesa('${r.id}','${c.id}')">Quitar</button>
+            </div>`).join('')}
+          ${caminantesMesa.length < 4 && disponibles.length ? `<div class="acciones-linea" style="margin-top:8px">
+            <select id="mesa-add-${m.id}">${disponibles.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}</select>
+            <button class="btn mini secundario" onclick="App.asignarAMesa('${r.id}','${m.id}')">+ Añadir</button>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    const sinAsignar = caminantesIns.map(i => Store.contacto(i.contactoId)).filter(Boolean).filter(c => !asignadoId(c));
+
+    return `
+      <div class="tarjeta">
+        <div class="acciones-linea" style="justify-content:space-between">
+          <h3 style="margin:0">🍽️ Mesas</h3>
+          ${mesas.length ? `<button class="btn ambar mini" onclick="App.sugerirMesas('${r.id}')">🎲 Sugerir asignación automática</button>` : ''}
+        </div>
+        <p class="nota">Líder + colíder de mesa (servidores ya inscritos en este retiro) + 3-4 caminantes. Si dos caminantes se conocen (marcado en su ficha de Palancas), nunca se sientan en la misma mesa. Los de la misma zona van juntos (importante en retiros combinados entre zonas).</p>
+        ${tarjetasMesa || '<div class="vacio">Sin mesas creadas todavía.</div>'}
+        <hr class="sep">
+        <div class="acciones-linea">
+          <input id="mesa-nombre-${r.id}" placeholder="Nombre (ej. Mesa 3)" style="max-width:220px">
+          <button class="btn mini" onclick="App.crearMesa('${r.id}')">+ Crear mesa</button>
+        </div>
+        ${sinAsignar.length ? `<p class="nota" style="margin-top:12px"><strong>Sin mesa (${sinAsignar.length}):</strong> ${sinAsignar.map(c => `${esc(c.nombre)} ${esc(c.apellidos)}${conoceDe(c.id) ? ` <span class="nota">(conoce a: ${esc(conoceDe(c.id))})</span>` : ''}`).join(' — ')}</p>` : ''}
+      </div>`;
+  },
+
+  crearMesa(retiroId) {
+    const input = document.getElementById(`mesa-nombre-${retiroId}`);
+    Store.crearMesa(retiroId, input.value.trim());
+    this.render();
+  },
+  borrarMesa(retiroId, id) {
+    if (!confirm('¿Eliminar esta mesa? Sus caminantes quedarán sin asignar.')) return;
+    Store.borrarMesa(id);
+    this.render();
+  },
+  // El líder/colíder de mesa debe estar centrado en sus caminantes: avisa (sin bloquear del
+  // todo) si esa persona ya tiene otra tarea en este mismo retiro.
+  otrasTareasEnRetiro(retiroId, contactoId, mesaIdActual) {
+    const tareas = [];
+    const palancas = Store.equipoPalancasDe(retiroId);
+    if (palancas.responsable === contactoId) tareas.push('responsable de Palancas');
+    if (palancas.ayudantes.includes(contactoId)) tareas.push('ayudante de Palancas');
+    const admin = Store.equipoAdministracionDe(retiroId);
+    if (admin.responsables.includes(contactoId)) tareas.push('responsable de Administración');
+    if (admin.ayudantes.includes(contactoId)) tareas.push('ayudante de Administración');
+    const cocina = Store.equipoCocinaDe(retiroId);
+    if (cocina.responsable === contactoId) tareas.push('responsable de Cocina');
+    if (cocina.ayudantes.includes(contactoId)) tareas.push('ayudante de Cocina');
+    Store.mesasDe(retiroId).forEach(m => {
+      if (m.id === mesaIdActual) return;
+      if (m.liderContactoId === contactoId) tareas.push(`líder de otra mesa (${m.nombre || 'sin nombre'})`);
+      if (m.coliderContactoId === contactoId) tareas.push(`colíder de otra mesa (${m.nombre || 'sin nombre'})`);
+    });
+    return tareas;
+  },
+
+  setLiderMesa(retiroId, mesaId, contactoId) {
+    if (contactoId) {
+      const tareas = this.otrasTareasEnRetiro(retiroId, contactoId, mesaId);
+      if (tareas.length && !confirm(`Esta persona ya es ${tareas.join(' y ')} en este retiro. El líder de mesa debería estar centrado solo en sus caminantes. ¿Asignarlo igualmente?`)) return;
+    }
+    Store.setLiderMesa(mesaId, contactoId || null);
+    this.render();
+  },
+  setColiderMesa(retiroId, mesaId, contactoId) {
+    if (contactoId) {
+      const tareas = this.otrasTareasEnRetiro(retiroId, contactoId, mesaId);
+      if (tareas.length && !confirm(`Esta persona ya es ${tareas.join(' y ')} en este retiro. El colíder de mesa debería estar centrado solo en sus caminantes. ¿Asignarlo igualmente?`)) return;
+    }
+    Store.setColiderMesa(mesaId, contactoId || null);
+    this.render();
+  },
+  asignarAMesa(retiroId, mesaId) {
+    const sel = document.getElementById(`mesa-add-${mesaId}`);
+    if (!sel || !sel.value) return;
+    Store.asignarCaminanteMesa(retiroId, sel.value, mesaId);
+    this.render();
+  },
+  quitarDeMesa(retiroId, contactoId) {
+    Store.asignarCaminanteMesa(retiroId, contactoId, null);
+    this.render();
+  },
+  sugerirMesas(retiroId) {
+    Store.sugerirAsignacionMesas(retiroId);
+    this.render();
+  },
+
+  bloqueHabitaciones(r, papel, titulo) {
+    const inscritos = Store.inscripcionesDe(r.id).filter(i => i.papel === papel).map(i => Store.contacto(i.contactoId)).filter(Boolean);
+    const habitaciones = Store.habitacionesDe(r.id).filter(h => h.papel === papel);
+    const asignadoId = c => Store.habitacionDeContacto(r.id, c.id)?.id || '';
+    const sinAsignar = inscritos.filter(c => !asignadoId(c));
+
+    const infoPersona = c => {
+      const edad = edadDe(c.fechaNacimiento);
+      const partes = [c.localidad, edad != null ? `${edad} años` : '', c.ronca ? `Ronca: ${c.ronca}` : '', c.companeroPreferido ? `Pide: ${c.companeroPreferido}` : ''].filter(Boolean);
+      return partes.join(' · ');
+    };
+
+    const tarjetasHabitacion = habitaciones.map(h => {
+      const ocupantes = Store.ocupantesDe(h.id);
+      const libres = h.capacidad - ocupantes.length;
+      const disponibles = inscritos.filter(c => !asignadoId(c) || asignadoId(c) === h.id).filter(c => asignadoId(c) !== h.id);
+      const solo = ocupantes.length === 1 && h.capacidad >= 1;
+      return `
+        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
+          <div class="acciones-linea" style="justify-content:space-between">
+            <strong>${esc(h.nombre) || 'Sin nombre'} · ${ocupantes.length}/${h.capacidad}</strong>
+            <button class="btn mini peligro" onclick="App.borrarHabitacion('${r.id}','${h.id}')">Eliminar habitación</button>
+          </div>
+          ${solo ? `<p class="nota" style="color:var(--ambar)">⚠️ Duerme solo/a${r.suplementoIndividual != null ? ` — debe pagar el suplemento individual (${r.suplementoIndividual} €)` : ' — recuerda cobrar el suplemento individual'}</p>` : ''}
+          ${ocupantes.map(c => `<div class="acciones-linea" style="margin-top:6px">
+              <span style="flex:1">${esc(c.nombre)} ${esc(c.apellidos)} <span class="nota">${esc(infoPersona(c))}</span></span>
+              <button class="btn mini secundario" onclick="App.quitarDeHabitacion('${r.id}','${c.id}')">Quitar</button>
+            </div>`).join('')}
+          ${libres > 0 && disponibles.length ? `<div class="acciones-linea" style="margin-top:8px">
+            <select id="hab-add-${h.id}">${disponibles.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}</select>
+            <button class="btn mini secundario" onclick="App.asignarAHabitacion('${r.id}','${h.id}')">+ Añadir</button>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="tarjeta">
+        <div class="acciones-linea" style="justify-content:space-between">
+          <h3 style="margin:0">🛏️ ${titulo}</h3>
+          ${habitaciones.length ? `<button class="btn ambar mini" onclick="App.sugerirHabitaciones('${r.id}')">🎲 Sugerir asignación automática</button>` : ''}
+        </div>
+        ${tarjetasHabitacion || '<div class="vacio">Sin habitaciones creadas todavía.</div>'}
+        <hr class="sep">
+        <div class="acciones-linea">
+          <input id="hab-nombre-${papel}-${r.id}" placeholder="Nombre (ej. Habitación 3)" style="max-width:220px">
+          <select id="hab-capacidad-${papel}-${r.id}"><option value="1">1 persona (paga suplemento individual)</option><option value="2" selected>2 personas (lo habitual)</option><option value="3">3 personas (caso excepcional)</option></select>
+          <button class="btn mini" onclick="App.crearHabitacion('${r.id}','${papel}')">+ Crear habitación</button>
+        </div>
+        ${sinAsignar.length ? `
+        <p class="nota" style="margin-top:12px"><strong>Sin asignar (${sinAsignar.length}):</strong> ${sinAsignar.map(c => `${esc(c.nombre)} ${esc(c.apellidos)} <span class="nota">(${esc(infoPersona(c))})</span>`).join(' — ')}</p>` : ''}
+      </div>`;
+  },
+
+  crearHabitacion(retiroId, papel) {
+    const nombre = document.getElementById(`hab-nombre-${papel}-${retiroId}`).value.trim();
+    const capacidad = parseInt(document.getElementById(`hab-capacidad-${papel}-${retiroId}`).value, 10);
+    Store.crearHabitacion(retiroId, nombre, capacidad, papel);
+    this.render();
+  },
+  borrarHabitacion(retiroId, id) {
+    if (!confirm('¿Eliminar esta habitación? Sus ocupantes quedarán sin asignar.')) return;
+    Store.borrarHabitacion(id);
+    this.render();
+  },
+  asignarAHabitacion(retiroId, habitacionId) {
+    const sel = document.getElementById(`hab-add-${habitacionId}`);
+    if (!sel || !sel.value) return;
+    Store.asignarOcupante(retiroId, sel.value, habitacionId);
+    this.render();
+  },
+  quitarDeHabitacion(retiroId, contactoId) {
+    Store.asignarOcupante(retiroId, contactoId, null);
+    this.render();
+  },
+  sugerirHabitaciones(retiroId) {
+    Store.sugerirAsignacionHabitaciones(retiroId);
+    this.render();
   },
 
   /* ---------- Documentos ---------- */
@@ -1381,6 +2097,7 @@ const App = {
   vActividades() {
     const hoy = new Date().toISOString().slice(0, 10);
     const lista = Store.db.actividades
+      .filter(a => !a.retiroId)  // las ligadas a un retiro viven en el programa de ESE retiro, no aquí
       .filter(a => this.ui.zonaId === 'all' || a.zonaId === this.ui.zonaId)
       .sort((a, b) => {
         const pa = a.fecha < hoy, pb = b.fecha < hoy;
@@ -1471,13 +2188,18 @@ const App = {
     this.render();
   },
 
-  dialogoActividad(id) {
-    const a = id ? Store.actividad(id) : { zonaId: this.ui.zonaId !== 'all' ? this.ui.zonaId : (Store.db.zonas[0]?.id || ''), diasAntes: 2 };
+  dialogoActividad(id, retiroIdNuevo) {
+    const r = retiroIdNuevo ? Store.retiro(retiroIdNuevo) : null;
+    const a = id ? Store.actividad(id) : {
+      zonaId: r ? r.zonaId : (this.ui.zonaId !== 'all' ? this.ui.zonaId : (Store.db.zonas[0]?.id || '')),
+      retiroId: retiroIdNuevo || null, diasAntes: 2
+    };
     const zonas = Store.db.zonas.map(z =>
       `<option value="${z.id}" ${a.zonaId === z.id ? 'selected' : ''}>${esc(z.nombre)}</option>`).join('');
     const d = document.getElementById('contactoDialog');
     d.innerHTML = `
-      <h3 style="margin-top:0">${id ? 'Editar actividad' : 'Nueva actividad'}</h3>
+      <h3 style="margin-top:0">${id ? 'Editar actividad' : (r ? `Nuevo punto del programa · ${esc(r.nombre)}` : 'Nueva actividad')}</h3>
+      <input type="hidden" id="a-retiro" value="${esc(a.retiroId || '')}">
       <div class="campo"><label>Título</label><input id="a-titulo" value="${esc(a.titulo)}" placeholder="Reunión de los jueves" style="width:100%"></div>
       <div class="grid2">
         <div class="campo"><label>Zona</label><select id="a-zona" style="width:100%" onchange="App.zonaSelectCambio(this)">${zonas}<option value="__nueva__">➕ Crear nueva zona…</option></select></div>
@@ -1506,20 +2228,22 @@ const App = {
     if (!v('a-titulo') || !v('a-fecha')) { alert('Título y fecha son obligatorios.'); return; }
     const aid = Store.guardarActividad({
       id: id || undefined,
-      titulo: v('a-titulo'), zonaId: v('a-zona'), lugar: v('a-lugar'),
+      titulo: v('a-titulo'), zonaId: v('a-zona'), retiroId: v('a-retiro') || null, lugar: v('a-lugar'),
       fecha: v('a-fecha'), hora: v('a-hora'), enlaceUbicacion: v('a-ubicacion'),
       diasAntes: v('a-dias') === '' ? 2 : Math.max(0, parseInt(v('a-dias'), 10) || 0),
       programa: document.getElementById('a-programa').value.trim(),
       avisos: document.getElementById('a-avisos').value.trim()
     });
     document.getElementById('contactoDialog').close();
-    this.abrirActividad(aid);
+    const retiroId = v('a-retiro');
+    if (retiroId) this.render(); else this.abrirActividad(aid);
   },
 
   borrarActividad(id) {
     if (!confirm('¿Eliminar esta actividad?')) return;
+    const eraDeRetiro = Store.actividad(id)?.retiroId;
     Store.borrarActividad(id);
-    this.ir('actividades');
+    if (eraDeRetiro) this.render(); else this.ir('actividades');
   },
 
   /* ============ Material: stock de ropa y pedidos pendientes ============ */
@@ -1577,10 +2301,8 @@ const App = {
           <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
           <td style="white-space:nowrap">
             <label class="check-linea" style="margin:0 0 4px"><input type="checkbox" ${i.pagado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'pagado', this.checked, true)"> Pagado</label>
-            <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">
-              <option value="">— método —</option>
-              ${['Transferencia', 'Bizum', 'Efectivo', 'Otro'].map(met => `<option ${i.metodoPago === met ? 'selected' : ''}>${met}</option>`).join('')}
-            </select>
+            <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">${opcionesFormasPago(i.metodoPago)}</select>
+            <input type="number" min="0" step="0.01" value="${i.importePagado || 0}" title="Importe pagado (€)" style="width:80px;margin-top:4px" onchange="App.insCampo('${i.id}', 'importePagado', parseFloat(this.value)||0, true)">
           </td>
           <td><input value="${esc(i.notas)}" placeholder="Notas…" onchange="App.insCampo('${i.id}', 'notas', this.value)" style="width:160px"></td>
         </tr>`;
@@ -1822,6 +2544,18 @@ const App = {
       </div>
 
       <div class="tarjeta">
+        <h3>Formas de pago</h3>
+        <p class="nota">Aparecen como opciones al marcar el pago de una inscripción. Añade aquí las que falten.</p>
+        <div class="acciones-linea">
+          ${Store.db.formasPago.map(f => `<span class="badge">${esc(f.nombre)}</span>`).join('') || '<span class="vacio">Sin formas de pago.</span>'}
+        </div>
+        <div class="acciones-linea" style="margin-top:8px">
+          <input id="aj-forma-pago" placeholder="Nueva forma de pago">
+          <button class="btn mini" onclick="App.nuevaFormaPago()">+ Añadir</button>
+        </div>
+      </div>
+
+      <div class="tarjeta">
         <h3>Sesión</h3>
         <p class="nota">Conectado como <strong>${esc(Store.sesion?.user?.email || '')}</strong>. Los datos se guardan en la base de datos compartida: los cambia cualquier líder con sesión y se ven al instante entre todos.</p>
         <button class="btn peligro" onclick="App.cerrarSesion()">Cerrar sesión</button>
@@ -1937,6 +2671,13 @@ const App = {
     Store.guardarAjustes({ enlaceBase: document.getElementById('aj-enlace').value.trim() });
     this.render();
     alert('Plantillas guardadas.');
+  },
+
+  nuevaFormaPago() {
+    const input = document.getElementById('aj-forma-pago');
+    if (!input.value.trim()) return;
+    Store.nuevaFormaPago(input.value);
+    this.render();
   },
 
   async cerrarSesion() {

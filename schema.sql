@@ -42,7 +42,9 @@ create table if not exists contactos (
   contacto_emergencia_nombre text default '',
   contacto_emergencia_telefono text default '',
   contacto_emergencia_relacion text default '',
-  parroquia_camino text default ''
+  parroquia_camino text default '',
+  politica_aceptada boolean not null default false,
+  alergias text default ''
 );
 alter table contactos add column if not exists talla_polo text default '';
 alter table contactos add column if not exists ronca text default '';
@@ -52,6 +54,8 @@ alter table contactos add column if not exists contacto_emergencia_nombre text d
 alter table contactos add column if not exists contacto_emergencia_telefono text default '';
 alter table contactos add column if not exists contacto_emergencia_relacion text default '';
 alter table contactos add column if not exists parroquia_camino text default '';
+alter table contactos add column if not exists politica_aceptada boolean not null default false;
+alter table contactos add column if not exists alergias text default '';
 create index if not exists idx_contactos_zona on contactos(zona_id);
 create index if not exists idx_contactos_dni on contactos(upper(dni));
 create index if not exists idx_contactos_email on contactos(lower(email));
@@ -84,7 +88,53 @@ create table if not exists retiros (
 );
 create index if not exists idx_retiros_zona on retiros(zona_id);
 
+-- ---------- Habitaciones (asignación de caminantes/servidores por retiro) ----------
+create table if not exists habitaciones (
+  id uuid primary key default gen_random_uuid(),
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  nombre text not null default '',
+  capacidad int not null default 2 check (capacidad in (1, 2, 3)),
+  papel text not null check (papel in ('caminante', 'servidor'))
+);
+create index if not exists idx_habitaciones_retiro on habitaciones(retiro_id);
+
+create table if not exists habitacion_ocupantes (
+  habitacion_id uuid not null references habitaciones(id) on delete cascade,
+  contacto_id uuid not null references contactos(id) on delete cascade,
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  primary key (habitacion_id, contacto_id),
+  unique (retiro_id, contacto_id)  -- una persona no puede estar en 2 habitaciones del mismo retiro
+);
+create index if not exists idx_ocupantes_retiro on habitacion_ocupantes(retiro_id);
+
+-- ---------- Mesas (5-6 personas: líder + colíder de mesa + 3-4 caminantes) ----------
+create table if not exists mesas (
+  id uuid primary key default gen_random_uuid(),
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  nombre text not null default '',
+  lider_contacto_id uuid references contactos(id) on delete set null,
+  colider_contacto_id uuid references contactos(id) on delete set null
+);
+create index if not exists idx_mesas_retiro on mesas(retiro_id);
+
+create table if not exists mesa_caminantes (
+  mesa_id uuid not null references mesas(id) on delete cascade,
+  contacto_id uuid not null references contactos(id) on delete cascade,
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  primary key (mesa_id, contacto_id),
+  unique (retiro_id, contacto_id)  -- un caminante no puede estar en 2 mesas del mismo retiro
+);
+create index if not exists idx_mesa_caminantes_retiro on mesa_caminantes(retiro_id);
+
 -- ---------- Inscripciones ----------
+-- ---------- Formas de pago (ampliables) ----------
+create table if not exists formas_pago (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null unique
+);
+insert into formas_pago (nombre) values ('Transferencia'), ('Bizum'), ('Efectivo'), ('Otro')
+  on conflict (nombre) do nothing;
+
 create table if not exists inscripciones (
   id uuid primary key default gen_random_uuid(),
   retiro_id uuid not null references retiros(id) on delete cascade,
@@ -95,10 +145,81 @@ create table if not exists inscripciones (
   metodo_pago text default '',
   notas text default '',
   detalles jsonb,  -- ficha larga del formulario de servidores
+  -- Datos para el equipo de Palancas (solo aplican al caminante de ESTE retiro concreto)
+  palancas_contacto1_nombre text default '',
+  palancas_contacto1_telefono text default '',
+  palancas_contacto1_relacion text default '',
+  palancas_contacto2_nombre text default '',
+  palancas_contacto2_telefono text default '',
+  palancas_contacto2_relacion text default '',
+  palancas_quien_invito text default '',
+  palancas_telefono_invito text default '',
+  palancas_necesita_transporte boolean not null default false,
+  palancas_mesa text default '',
+  palancas_asignado_a uuid references contactos(id) on delete set null,
+  palancas_contactado boolean not null default false,
+  llegado boolean not null default false,
+  importe_pagado numeric not null default 0,
+  mesa_conoce_a text default '',  -- texto libre: a qué otro/s caminante/s conoce (para NO sentarlos juntos)
+  etiqueta_impresa boolean not null default false,
   unique (retiro_id, contacto_id)
 );
+alter table inscripciones add column if not exists mesa_conoce_a text default '';
+alter table inscripciones add column if not exists etiqueta_impresa boolean not null default false;
+alter table inscripciones add column if not exists palancas_contacto1_nombre text default '';
+alter table inscripciones add column if not exists palancas_contacto1_telefono text default '';
+alter table inscripciones add column if not exists palancas_contacto1_relacion text default '';
+alter table inscripciones add column if not exists palancas_contacto2_nombre text default '';
+alter table inscripciones add column if not exists palancas_contacto2_telefono text default '';
+alter table inscripciones add column if not exists palancas_contacto2_relacion text default '';
+alter table inscripciones add column if not exists palancas_quien_invito text default '';
+alter table inscripciones add column if not exists palancas_telefono_invito text default '';
+alter table inscripciones add column if not exists palancas_necesita_transporte boolean not null default false;
+alter table inscripciones add column if not exists palancas_mesa text default '';
+alter table inscripciones add column if not exists palancas_asignado_a uuid references contactos(id) on delete set null;
+alter table inscripciones add column if not exists palancas_contactado boolean not null default false;
+alter table inscripciones add column if not exists llegado boolean not null default false;
+alter table inscripciones add column if not exists importe_pagado numeric not null default 0;
 create index if not exists idx_inscripciones_retiro on inscripciones(retiro_id);
 create index if not exists idx_inscripciones_contacto on inscripciones(contacto_id);
+
+-- Equipo de Palancas de cada retiro: un responsable + varios ayudantes, todos servidores inscritos en ese retiro
+create table if not exists retiro_palancas_equipo (
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  contacto_id uuid not null references contactos(id) on delete cascade,
+  rol text not null check (rol in ('responsable', 'ayudante')),
+  primary key (retiro_id, contacto_id)
+);
+create unique index if not exists idx_palancas_responsable_unico on retiro_palancas_equipo(retiro_id) where rol = 'responsable';
+
+-- Equipo de Cocina de cada retiro: un responsable + varios ayudantes (organizan comidas/cenas/
+-- descansos y se encargan de conocer las alergias de caminantes y servidores inscritos).
+create table if not exists retiro_cocina_equipo (
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  contacto_id uuid not null references contactos(id) on delete cascade,
+  rol text not null check (rol in ('responsable', 'ayudante')),
+  primary key (retiro_id, contacto_id)
+);
+create unique index if not exists idx_cocina_responsable_unico on retiro_cocina_equipo(retiro_id) where rol = 'responsable';
+
+-- Responsable de tareas puntuales de un retiro que no necesitan un equipo entero
+-- (ej. "etiquetas"): una fila por tarea, con su único responsable.
+create table if not exists retiro_tarea_responsables (
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  tarea text not null,
+  contacto_id uuid not null references contactos(id) on delete cascade,
+  primary key (retiro_id, tarea)
+);
+
+-- Equipo de Administración de cada retiro: hasta 2 responsables + varios ayudantes (servidores
+-- que acompañan a los caminantes a sus habitaciones). A diferencia de Palancas, aquí SÍ puede
+-- haber más de un responsable a la vez.
+create table if not exists retiro_administracion_equipo (
+  retiro_id uuid not null references retiros(id) on delete cascade,
+  contacto_id uuid not null references contactos(id) on delete cascade,
+  rol text not null check (rol in ('responsable', 'ayudante')),
+  primary key (retiro_id, contacto_id)
+);
 
 -- ---------- Acciones del retiro ----------
 create table if not exists acciones (
@@ -126,6 +247,7 @@ create index if not exists idx_documentos_retiro on documentos(retiro_id);
 create table if not exists actividades (
   id uuid primary key default gen_random_uuid(),
   zona_id uuid not null references zonas(id),
+  retiro_id uuid references retiros(id) on delete cascade,  -- si tiene retiro, es parte de SU programa (minuto a minuto)
   titulo text not null,
   fecha date not null,
   hora text default '',
@@ -135,7 +257,9 @@ create table if not exists actividades (
   programa text default '',
   avisos text default ''
 );
+alter table actividades add column if not exists retiro_id uuid references retiros(id) on delete cascade;
 create index if not exists idx_actividades_zona on actividades(zona_id);
+create index if not exists idx_actividades_retiro on actividades(retiro_id);
 
 create table if not exists actividad_asistentes (
   actividad_id uuid not null references actividades(id) on delete cascade,
@@ -325,7 +449,9 @@ begin
     'zonas','contactos','equipos','retiros','inscripciones','acciones',
     'documentos','actividades','actividad_asistentes','cartas',
     'productos','stock','pedidos_prendas','organizacion','ajustes','plantillas',
-    'lideres','categorias_tesoreria','movimientos_tesoreria'
+    'lideres','categorias_tesoreria','movimientos_tesoreria','formas_pago',
+    'habitaciones','habitacion_ocupantes','retiro_palancas_equipo','retiro_administracion_equipo',
+    'mesas','mesa_caminantes','retiro_cocina_equipo','retiro_tarea_responsables'
   ])
   loop
     execute format('alter table %I enable row level security', t);
@@ -339,7 +465,9 @@ declare t text;
 begin
   for t in select unnest(array[
     'zonas','equipos','acciones','documentos','cartas',
-    'organizacion','ajustes','plantillas','lideres'
+    'organizacion','ajustes','plantillas','lideres',
+    'habitaciones','habitacion_ocupantes','retiro_palancas_equipo','retiro_administracion_equipo',
+    'mesas','mesa_caminantes','retiro_cocina_equipo','retiro_tarea_responsables'
   ])
   loop
     execute format('drop policy if exists "coordinador_all" on %I', t);
@@ -368,6 +496,11 @@ create policy "lectura_apoyo_retiros" on retiros for select to authenticated
 -- Inscripciones: tesorería gestiona pagos igual que el coordinador.
 drop policy if exists "coordinador_tesoreria_inscripciones" on inscripciones;
 create policy "coordinador_tesoreria_inscripciones" on inscripciones for all to authenticated
+  using (mi_rol() in ('coordinador','tesoreria')) with check (mi_rol() in ('coordinador','tesoreria'));
+
+-- Formas de pago: mismo acceso que las inscripciones (coordinador + tesorería)
+drop policy if exists "coordinador_tesoreria_formas_pago" on formas_pago;
+create policy "coordinador_tesoreria_formas_pago" on formas_pago for all to authenticated
   using (mi_rol() in ('coordinador','tesoreria')) with check (mi_rol() in ('coordinador','tesoreria'));
 
 -- Tesorería: categorías y movimientos (ingresos/gastos), solo coordinador y tesorería
@@ -471,6 +604,10 @@ create policy "logos_borrado_lideres" on storage.objects for delete to authentic
 -- actualizar, convertir a servidor si toca, e inscribir en el retiro.
 -- ============================================================
 
+-- La firma de parámetros cambió (se añadieron los campos de Palancas): hay que borrar
+-- la versión antigua explícitamente, si no Postgres dejaría las dos coexistiendo.
+drop function if exists inscribir_caminante(uuid, text, text, text, text, text, date);
+
 create or replace function inscribir_caminante(
   p_retiro_id uuid,
   p_nombre text,
@@ -478,7 +615,16 @@ create or replace function inscribir_caminante(
   p_telefono text,
   p_email text default '',
   p_dni text default '',
-  p_fecha_nacimiento date default null
+  p_fecha_nacimiento date default null,
+  p_contacto1_nombre text default '',
+  p_contacto1_telefono text default '',
+  p_contacto1_relacion text default '',
+  p_contacto2_nombre text default '',
+  p_contacto2_telefono text default '',
+  p_contacto2_relacion text default '',
+  p_quien_invito text default '',
+  p_telefono_invito text default '',
+  p_necesita_transporte boolean default false
 ) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
@@ -516,9 +662,24 @@ begin
     returning * into v_contacto;
   end if;
 
-  insert into inscripciones (retiro_id, contacto_id, papel, estado, detalles)
-  values (p_retiro_id, v_contacto.id, 'caminante', 'pendiente', jsonb_build_object('fechaInscripcion', v_hoy))
-  on conflict (retiro_id, contacto_id) do update set papel = 'caminante';
+  insert into inscripciones (retiro_id, contacto_id, papel, estado, detalles,
+    palancas_contacto1_nombre, palancas_contacto1_telefono, palancas_contacto1_relacion,
+    palancas_contacto2_nombre, palancas_contacto2_telefono, palancas_contacto2_relacion,
+    palancas_quien_invito, palancas_telefono_invito, palancas_necesita_transporte)
+  values (p_retiro_id, v_contacto.id, 'caminante', 'pendiente', jsonb_build_object('fechaInscripcion', v_hoy),
+    p_contacto1_nombre, p_contacto1_telefono, p_contacto1_relacion,
+    p_contacto2_nombre, p_contacto2_telefono, p_contacto2_relacion,
+    p_quien_invito, p_telefono_invito, coalesce(p_necesita_transporte, false))
+  on conflict (retiro_id, contacto_id) do update set papel = 'caminante',
+    palancas_contacto1_nombre = excluded.palancas_contacto1_nombre,
+    palancas_contacto1_telefono = excluded.palancas_contacto1_telefono,
+    palancas_contacto1_relacion = excluded.palancas_contacto1_relacion,
+    palancas_contacto2_nombre = excluded.palancas_contacto2_nombre,
+    palancas_contacto2_telefono = excluded.palancas_contacto2_telefono,
+    palancas_contacto2_relacion = excluded.palancas_contacto2_relacion,
+    palancas_quien_invito = excluded.palancas_quien_invito,
+    palancas_telefono_invito = excluded.palancas_telefono_invito,
+    palancas_necesita_transporte = excluded.palancas_necesita_transporte;
 
   return jsonb_build_object('contacto_id', v_contacto.id, 'nombre', v_contacto.nombre, 'apellidos', v_contacto.apellidos);
 end;

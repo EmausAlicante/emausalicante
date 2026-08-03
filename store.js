@@ -29,7 +29,7 @@ function contactoDesdeDB(r) {
     tallaPolo: r.talla_polo || '', ronca: r.ronca || '', duermeConRoncador: r.duerme_con_roncador || '',
     companeroPreferido: r.companero_preferido || '', contactoEmergenciaNombre: r.contacto_emergencia_nombre || '',
     contactoEmergenciaTelefono: r.contacto_emergencia_telefono || '', contactoEmergenciaRelacion: r.contacto_emergencia_relacion || '',
-    parroquiaCamino: r.parroquia_camino || ''
+    parroquiaCamino: r.parroquia_camino || '', politicaAceptada: !!r.politica_aceptada, alergias: r.alergias || ''
   };
 }
 function contactoADB(c) {
@@ -41,7 +41,7 @@ function contactoADB(c) {
     talla_polo: c.tallaPolo || '', ronca: c.ronca || '', duerme_con_roncador: c.duermeConRoncador || '',
     companero_preferido: c.companeroPreferido || '', contacto_emergencia_nombre: c.contactoEmergenciaNombre || '',
     contacto_emergencia_telefono: c.contactoEmergenciaTelefono || '', contacto_emergencia_relacion: c.contactoEmergenciaRelacion || '',
-    parroquia_camino: c.parroquiaCamino || ''
+    parroquia_camino: c.parroquiaCamino || '', politica_aceptada: !!c.politicaAceptada, alergias: c.alergias || ''
   };
 }
 
@@ -80,13 +80,29 @@ function retiroADB(r) {
 function inscripcionDesdeDB(r) {
   return {
     id: r.id, retiroId: r.retiro_id, contactoId: r.contacto_id, papel: r.papel, estado: r.estado,
-    pagado: r.pagado, metodoPago: r.metodo_pago || '', notas: r.notas || '', detalles: r.detalles || null
+    pagado: r.pagado, metodoPago: r.metodo_pago || '', notas: r.notas || '', detalles: r.detalles || null,
+    palancasContacto1Nombre: r.palancas_contacto1_nombre || '', palancasContacto1Telefono: r.palancas_contacto1_telefono || '',
+    palancasContacto1Relacion: r.palancas_contacto1_relacion || '', palancasContacto2Nombre: r.palancas_contacto2_nombre || '',
+    palancasContacto2Telefono: r.palancas_contacto2_telefono || '', palancasContacto2Relacion: r.palancas_contacto2_relacion || '',
+    palancasQuienInvito: r.palancas_quien_invito || '', palancasTelefonoInvito: r.palancas_telefono_invito || '',
+    palancasNecesitaTransporte: !!r.palancas_necesita_transporte, palancasMesa: r.palancas_mesa || '',
+    palancasAsignadoA: r.palancas_asignado_a || null, palancasContactado: !!r.palancas_contactado,
+    llegado: !!r.llegado, importePagado: Number(r.importe_pagado) || 0, mesaConoceA: r.mesa_conoce_a || '',
+    etiquetaImpresa: !!r.etiqueta_impresa
   };
 }
 function inscripcionADB(i) {
   return {
     id: i.id, retiro_id: i.retiroId, contacto_id: i.contactoId, papel: i.papel, estado: i.estado || 'pendiente',
-    pagado: !!i.pagado, metodo_pago: i.metodoPago || '', notas: i.notas || '', detalles: i.detalles || null
+    pagado: !!i.pagado, metodo_pago: i.metodoPago || '', notas: i.notas || '', detalles: i.detalles || null,
+    palancas_contacto1_nombre: i.palancasContacto1Nombre || '', palancas_contacto1_telefono: i.palancasContacto1Telefono || '',
+    palancas_contacto1_relacion: i.palancasContacto1Relacion || '', palancas_contacto2_nombre: i.palancasContacto2Nombre || '',
+    palancas_contacto2_telefono: i.palancasContacto2Telefono || '', palancas_contacto2_relacion: i.palancasContacto2Relacion || '',
+    palancas_quien_invito: i.palancasQuienInvito || '', palancas_telefono_invito: i.palancasTelefonoInvito || '',
+    palancas_necesita_transporte: !!i.palancasNecesitaTransporte, palancas_mesa: i.palancasMesa || '',
+    palancas_asignado_a: i.palancasAsignadoA || null, palancas_contactado: !!i.palancasContactado,
+    llegado: !!i.llegado, importe_pagado: Number(i.importePagado) || 0, mesa_conoce_a: i.mesaConoceA || '',
+    etiqueta_impresa: !!i.etiquetaImpresa
   };
 }
 
@@ -106,7 +122,7 @@ function documentoADB(d) {
 
 function actividadDesdeDB(a, asistentesFilas) {
   return {
-    id: a.id, zonaId: a.zona_id, titulo: a.titulo, fecha: a.fecha, hora: a.hora || '',
+    id: a.id, zonaId: a.zona_id, retiroId: a.retiro_id || null, titulo: a.titulo, fecha: a.fecha, hora: a.hora || '',
     lugar: a.lugar || '', enlaceUbicacion: a.enlace_ubicacion || '', diasAntes: a.dias_antes,
     programa: a.programa || '', avisos: a.avisos || '',
     asistentes: asistentesFilas.filter(x => x.actividad_id === a.id).map(x => x.contacto_id)
@@ -114,7 +130,7 @@ function actividadDesdeDB(a, asistentesFilas) {
 }
 function actividadADB(a) {
   return {
-    id: a.id, zona_id: a.zonaId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || '',
+    id: a.id, zona_id: a.zonaId, retiro_id: a.retiroId || null, titulo: a.titulo, fecha: a.fecha, hora: a.hora || '',
     lugar: a.lugar || '', enlace_ubicacion: a.enlaceUbicacion || '', dias_antes: a.diasAntes === undefined ? 2 : a.diasAntes,
     programa: a.programa || '', avisos: a.avisos || ''
   };
@@ -168,7 +184,8 @@ const Store = {
       zonasR, contactosR, equiposR, retirosR, inscripcionesR, accionesR,
       documentosR, actividadesR, asistentesR, cartasR,
       productosR, stockR, pedidosR, orgR, ajustesR, plantillasR, lideresR,
-      categoriasTesR, movimientosTesR
+      categoriasTesR, movimientosTesR, habitacionesR, ocupantesR, palancasEquipoR, administracionEquipoR, formasPagoR,
+      mesasR, mesaCaminantesR, cocinaEquipoR, tareaResponsablesR
     ] = await Promise.all([
       sb.from('zonas').select('*').order('nombre'),
       sb.from('contactos').select('*'),
@@ -188,7 +205,16 @@ const Store = {
       sb.from('plantillas').select('*').maybeSingle(),
       sb.from('lideres').select('*').order('creado_en'),
       sb.from('categorias_tesoreria').select('*').order('tipo').order('nombre'),
-      sb.from('movimientos_tesoreria').select('*').order('fecha', { ascending: false })
+      sb.from('movimientos_tesoreria').select('*').order('fecha', { ascending: false }),
+      sb.from('habitaciones').select('*'),
+      sb.from('habitacion_ocupantes').select('*'),
+      sb.from('retiro_palancas_equipo').select('*'),
+      sb.from('retiro_administracion_equipo').select('*'),
+      sb.from('formas_pago').select('*').order('nombre'),
+      sb.from('mesas').select('*'),
+      sb.from('mesa_caminantes').select('*'),
+      sb.from('retiro_cocina_equipo').select('*'),
+      sb.from('retiro_tarea_responsables').select('*')
     ]);
 
     this.db = {
@@ -220,7 +246,16 @@ const Store = {
           id: m.id, tipo: m.tipo, categoriaId: m.categoria_id, retiroId: m.retiro_id,
           concepto: m.concepto || '', importe: Number(m.importe), fecha: m.fecha, creadoPor: m.creado_por || ''
         }))
-      }
+      },
+      habitaciones: (habitacionesR.data || []).map(h => ({ id: h.id, retiroId: h.retiro_id, nombre: h.nombre || '', capacidad: h.capacidad, papel: h.papel })),
+      habitacionOcupantes: (ocupantesR.data || []).map(o => ({ habitacionId: o.habitacion_id, contactoId: o.contacto_id, retiroId: o.retiro_id })),
+      palancasEquipo: (palancasEquipoR.data || []).map(p => ({ retiroId: p.retiro_id, contactoId: p.contacto_id, rol: p.rol })),
+      administracionEquipo: (administracionEquipoR.data || []).map(p => ({ retiroId: p.retiro_id, contactoId: p.contacto_id, rol: p.rol })),
+      formasPago: (formasPagoR.data || []).map(f => ({ id: f.id, nombre: f.nombre })),
+      mesas: (mesasR.data || []).map(m => ({ id: m.id, retiroId: m.retiro_id, nombre: m.nombre || '', liderContactoId: m.lider_contacto_id, coliderContactoId: m.colider_contacto_id })),
+      mesaCaminantes: (mesaCaminantesR.data || []).map(m => ({ mesaId: m.mesa_id, contactoId: m.contacto_id, retiroId: m.retiro_id })),
+      cocinaEquipo: (cocinaEquipoR.data || []).map(p => ({ retiroId: p.retiro_id, contactoId: p.contacto_id, rol: p.rol })),
+      tareaResponsables: (tareaResponsablesR.data || []).map(t => ({ retiroId: t.retiro_id, tarea: t.tarea, contactoId: t.contacto_id }))
     };
 
     this.suscribirRealtime();
@@ -417,6 +452,11 @@ const Store = {
       datos.creado = hoyISO();
       this.db.retiros.push(datos);
       this._persist(sb.from('retiros').insert(retiroADB(datos)), 'No se pudo crear el retiro');
+      // La recepción de caminantes es prácticamente fija: siempre el primer día, sobre las 18:00.
+      this.guardarActividad({
+        zonaId: datos.zonaId, retiroId: datos.id, titulo: 'Recepción de caminantes',
+        fecha: datos.fechaInicio, hora: '18:00', lugar: datos.lugar || '', diasAntes: 2
+      });
     }
     return datos.id;
   },
@@ -489,6 +529,16 @@ const Store = {
     if ('metodoPago' in campos) camposDB.metodo_pago = i.metodoPago;
     if ('notas' in campos) camposDB.notas = i.notas;
     if ('papel' in campos) camposDB.papel = i.papel;
+    const mapaPalancas = {
+      palancasContacto1Nombre: 'palancas_contacto1_nombre', palancasContacto1Telefono: 'palancas_contacto1_telefono',
+      palancasContacto1Relacion: 'palancas_contacto1_relacion', palancasContacto2Nombre: 'palancas_contacto2_nombre',
+      palancasContacto2Telefono: 'palancas_contacto2_telefono', palancasContacto2Relacion: 'palancas_contacto2_relacion',
+      palancasQuienInvito: 'palancas_quien_invito', palancasTelefonoInvito: 'palancas_telefono_invito',
+      palancasNecesitaTransporte: 'palancas_necesita_transporte', palancasMesa: 'palancas_mesa',
+      palancasAsignadoA: 'palancas_asignado_a', palancasContactado: 'palancas_contactado',
+      llegado: 'llegado', importePagado: 'importe_pagado', mesaConoceA: 'mesa_conoce_a', etiquetaImpresa: 'etiqueta_impresa'
+    };
+    for (const campo in mapaPalancas) if (campo in campos) camposDB[mapaPalancas[campo]] = i[campo];
     this._persist(sb.from('inscripciones').update(camposDB).eq('id', id), 'No se pudo actualizar la inscripción');
   },
 
@@ -828,6 +878,326 @@ const Store = {
   borrarMovimiento(id) {
     this.db.tesoreria.movimientos = this.db.tesoreria.movimientos.filter(m => m.id !== id);
     this._persist(sb.from('movimientos_tesoreria').delete().eq('id', id), 'No se pudo eliminar el movimiento');
+  },
+
+  /* ---------- Habitaciones ---------- */
+  habitacionesDe(retiroId) {
+    return this.db.habitaciones.filter(h => h.retiroId === retiroId);
+  },
+  ocupantesDe(habitacionId) {
+    return this.db.habitacionOcupantes.filter(o => o.habitacionId === habitacionId)
+      .map(o => this.contacto(o.contactoId)).filter(Boolean);
+  },
+  habitacionDeContacto(retiroId, contactoId) {
+    const o = this.db.habitacionOcupantes.find(x => x.retiroId === retiroId && x.contactoId === contactoId);
+    return o ? this.db.habitaciones.find(h => h.id === o.habitacionId) : null;
+  },
+
+  crearHabitacion(retiroId, nombre, capacidad, papel) {
+    const h = { id: uid(), retiroId, nombre: nombre || '', capacidad, papel };
+    this.db.habitaciones.push(h);
+    this._persist(sb.from('habitaciones').insert({ id: h.id, retiro_id: retiroId, nombre: h.nombre, capacidad, papel }), 'No se pudo crear la habitación');
+    return h.id;
+  },
+  borrarHabitacion(id) {
+    this.db.habitaciones = this.db.habitaciones.filter(h => h.id !== id);
+    this.db.habitacionOcupantes = this.db.habitacionOcupantes.filter(o => o.habitacionId !== id);
+    this._persist(sb.from('habitaciones').delete().eq('id', id), 'No se pudo eliminar la habitación');
+  },
+
+  // Asigna a alguien a una habitación, quitándolo antes de cualquier otra habitación del MISMO retiro
+  // (nadie puede estar en dos a la vez). Si habitacionId es null, solo lo desasigna.
+  async asignarOcupante(retiroId, contactoId, habitacionId) {
+    this.db.habitacionOcupantes = this.db.habitacionOcupantes.filter(o => !(o.retiroId === retiroId && o.contactoId === contactoId));
+    await this._persist(sb.from('habitacion_ocupantes').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo actualizar la habitación');
+    if (habitacionId) {
+      this.db.habitacionOcupantes.push({ habitacionId, contactoId, retiroId });
+      this._persist(sb.from('habitacion_ocupantes').insert({ habitacion_id: habitacionId, contacto_id: contactoId, retiro_id: retiroId }), 'No se pudo asignar la habitación');
+    }
+  },
+
+  /* ---------- Equipo de Palancas (responsable + ayudantes, por retiro) ---------- */
+  equipoPalancasDe(retiroId) {
+    const filas = this.db.palancasEquipo.filter(p => p.retiroId === retiroId);
+    return {
+      responsable: filas.find(p => p.rol === 'responsable')?.contactoId || null,
+      ayudantes: filas.filter(p => p.rol === 'ayudante').map(p => p.contactoId)
+    };
+  },
+  asignarResponsablePalancas(retiroId, contactoId) {
+    this.db.palancasEquipo = this.db.palancasEquipo.filter(p => !(p.retiroId === retiroId && (p.rol === 'responsable' || p.contactoId === contactoId)));
+    this._persist(sb.from('retiro_palancas_equipo').delete().eq('retiro_id', retiroId).eq('rol', 'responsable'), 'No se pudo asignar el responsable');
+    this._persist(sb.from('retiro_palancas_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo asignar el responsable');
+    if (contactoId) {
+      this.db.palancasEquipo.push({ retiroId, contactoId, rol: 'responsable' });
+      this._persist(sb.from('retiro_palancas_equipo').insert({ retiro_id: retiroId, contacto_id: contactoId, rol: 'responsable' }), 'No se pudo asignar el responsable');
+    }
+  },
+  agregarAyudantePalancas(retiroId, contactoId) {
+    if (this.db.palancasEquipo.some(p => p.retiroId === retiroId && p.contactoId === contactoId)) return;
+    this.db.palancasEquipo.push({ retiroId, contactoId, rol: 'ayudante' });
+    this._persist(sb.from('retiro_palancas_equipo').insert({ retiro_id: retiroId, contacto_id: contactoId, rol: 'ayudante' }), 'No se pudo añadir el ayudante');
+  },
+  quitarDePalancas(retiroId, contactoId) {
+    this.db.palancasEquipo = this.db.palancasEquipo.filter(p => !(p.retiroId === retiroId && p.contactoId === contactoId));
+    this._persist(sb.from('retiro_palancas_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo quitar del equipo de Palancas');
+  },
+
+  /* ---------- Equipo de Cocina (un responsable + varios ayudantes, por retiro) ---------- */
+  equipoCocinaDe(retiroId) {
+    const filas = this.db.cocinaEquipo.filter(p => p.retiroId === retiroId);
+    return {
+      responsable: filas.find(p => p.rol === 'responsable')?.contactoId || null,
+      ayudantes: filas.filter(p => p.rol === 'ayudante').map(p => p.contactoId)
+    };
+  },
+  asignarResponsableCocina(retiroId, contactoId) {
+    this.db.cocinaEquipo = this.db.cocinaEquipo.filter(p => !(p.retiroId === retiroId && (p.rol === 'responsable' || p.contactoId === contactoId)));
+    this._persist(sb.from('retiro_cocina_equipo').delete().eq('retiro_id', retiroId).eq('rol', 'responsable'), 'No se pudo asignar el responsable');
+    this._persist(sb.from('retiro_cocina_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo asignar el responsable');
+    if (contactoId) {
+      this.db.cocinaEquipo.push({ retiroId, contactoId, rol: 'responsable' });
+      this._persist(sb.from('retiro_cocina_equipo').insert({ retiro_id: retiroId, contacto_id: contactoId, rol: 'responsable' }), 'No se pudo asignar el responsable');
+    }
+  },
+  agregarAyudanteCocina(retiroId, contactoId) {
+    if (this.db.cocinaEquipo.some(p => p.retiroId === retiroId && p.contactoId === contactoId)) return;
+    this.db.cocinaEquipo.push({ retiroId, contactoId, rol: 'ayudante' });
+    this._persist(sb.from('retiro_cocina_equipo').insert({ retiro_id: retiroId, contacto_id: contactoId, rol: 'ayudante' }), 'No se pudo añadir el ayudante');
+  },
+  quitarDeCocina(retiroId, contactoId) {
+    this.db.cocinaEquipo = this.db.cocinaEquipo.filter(p => !(p.retiroId === retiroId && p.contactoId === contactoId));
+    this._persist(sb.from('retiro_cocina_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo quitar del equipo de Cocina');
+  },
+
+  /* ---------- Responsable de una tarea puntual (genérico, reutilizable para cualquier tarea futura) ---------- */
+  responsableTarea(retiroId, tarea) {
+    return this.db.tareaResponsables.find(t => t.retiroId === retiroId && t.tarea === tarea)?.contactoId || null;
+  },
+  setResponsableTarea(retiroId, tarea, contactoId) {
+    this.db.tareaResponsables = this.db.tareaResponsables.filter(t => !(t.retiroId === retiroId && t.tarea === tarea));
+    this._persist(sb.from('retiro_tarea_responsables').delete().eq('retiro_id', retiroId).eq('tarea', tarea), 'No se pudo asignar el responsable');
+    if (contactoId) {
+      this.db.tareaResponsables.push({ retiroId, tarea, contactoId });
+      this._persist(sb.from('retiro_tarea_responsables').insert({ retiro_id: retiroId, tarea, contacto_id: contactoId }), 'No se pudo asignar el responsable');
+    }
+  },
+
+  /* ---------- Equipo de Administración (hasta 2 responsables + varios ayudantes, por retiro) ---------- */
+  equipoAdministracionDe(retiroId) {
+    const filas = this.db.administracionEquipo.filter(p => p.retiroId === retiroId);
+    return {
+      responsables: filas.filter(p => p.rol === 'responsable').map(p => p.contactoId),
+      ayudantes: filas.filter(p => p.rol === 'ayudante').map(p => p.contactoId)
+    };
+  },
+  agregarAAdministracion(retiroId, contactoId, rol) {
+    if (this.db.administracionEquipo.some(p => p.retiroId === retiroId && p.contactoId === contactoId)) return;
+    this.db.administracionEquipo.push({ retiroId, contactoId, rol });
+    this._persist(sb.from('retiro_administracion_equipo').insert({ retiro_id: retiroId, contacto_id: contactoId, rol }), 'No se pudo añadir al equipo de Administración');
+  },
+  quitarDeAdministracion(retiroId, contactoId) {
+    this.db.administracionEquipo = this.db.administracionEquipo.filter(p => !(p.retiroId === retiroId && p.contactoId === contactoId));
+    this._persist(sb.from('retiro_administracion_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo quitar del equipo de Administración');
+  },
+
+  /* ---------- Formas de pago (ampliables) ---------- */
+  nuevaFormaPago(nombre) {
+    nombre = (nombre || '').trim();
+    if (!nombre) return null;
+    const existente = this.db.formasPago.find(f => f.nombre.toLowerCase() === nombre.toLowerCase());
+    if (existente) return existente;
+    const f = { id: uid(), nombre };
+    this.db.formasPago.push(f);
+    this._persist(sb.from('formas_pago').insert({ id: f.id, nombre }), 'No se pudo crear la forma de pago');
+    return f;
+  },
+
+  nuevaFormaPago(nombre) {
+    nombre = (nombre || '').trim();
+    if (!nombre) return null;
+    const existente = this.db.formasPago.find(f => f.nombre.toLowerCase() === nombre.toLowerCase());
+    if (existente) return existente;
+    const f = { id: uid(), nombre };
+    this.db.formasPago.push(f);
+    this._persist(sb.from('formas_pago').insert({ id: f.id, nombre }), 'No se pudo crear la forma de pago');
+    return f;
+  },
+
+  /* ---------- Mesas (líder + colíder de mesa + 3-4 caminantes) ---------- */
+  mesasDe(retiroId) {
+    return this.db.mesas.filter(m => m.retiroId === retiroId);
+  },
+  caminantesDeMesa(mesaId) {
+    return this.db.mesaCaminantes.filter(o => o.mesaId === mesaId).map(o => this.contacto(o.contactoId)).filter(Boolean);
+  },
+  mesaDeCaminante(retiroId, contactoId) {
+    const o = this.db.mesaCaminantes.find(x => x.retiroId === retiroId && x.contactoId === contactoId);
+    return o ? this.db.mesas.find(m => m.id === o.mesaId) : null;
+  },
+  crearMesa(retiroId, nombre) {
+    const m = { id: uid(), retiroId, nombre: nombre || '', liderContactoId: null, coliderContactoId: null };
+    this.db.mesas.push(m);
+    this._persist(sb.from('mesas').insert({ id: m.id, retiro_id: retiroId, nombre: m.nombre }), 'No se pudo crear la mesa');
+    return m.id;
+  },
+  borrarMesa(id) {
+    this.db.mesas = this.db.mesas.filter(m => m.id !== id);
+    this.db.mesaCaminantes = this.db.mesaCaminantes.filter(o => o.mesaId !== id);
+    this._persist(sb.from('mesas').delete().eq('id', id), 'No se pudo eliminar la mesa');
+  },
+  setLiderMesa(mesaId, contactoId) {
+    const m = this.db.mesas.find(x => x.id === mesaId); if (!m) return;
+    m.liderContactoId = contactoId || null;
+    this._persist(sb.from('mesas').update({ lider_contacto_id: m.liderContactoId }).eq('id', mesaId), 'No se pudo asignar el líder de mesa');
+  },
+  setColiderMesa(mesaId, contactoId) {
+    const m = this.db.mesas.find(x => x.id === mesaId); if (!m) return;
+    m.coliderContactoId = contactoId || null;
+    this._persist(sb.from('mesas').update({ colider_contacto_id: m.coliderContactoId }).eq('id', mesaId), 'No se pudo asignar el colíder de mesa');
+  },
+  asignarCaminanteMesa(retiroId, contactoId, mesaId) {
+    this.db.mesaCaminantes = this.db.mesaCaminantes.filter(o => !(o.retiroId === retiroId && o.contactoId === contactoId));
+    this._persist(sb.from('mesa_caminantes').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo actualizar la mesa');
+    if (mesaId) {
+      this.db.mesaCaminantes.push({ mesaId, contactoId, retiroId });
+      this._persist(sb.from('mesa_caminantes').insert({ mesa_id: mesaId, contacto_id: contactoId, retiro_id: retiroId }), 'No se pudo asignar la mesa');
+    }
+  },
+
+  /* Sugerencia automática de mesas: al contrario que en habitaciones, aquí lo importante es
+     que dos caminantes que se conocen (inscripciones.mesaConoceA, texto libre) NUNCA acaben en
+     la misma mesa. Además, los de la misma zona van juntos (importante en retiros combinados
+     entre zonas, ej. Elche + Benidorm) — solo se mezclan zonas si no queda otra mesa disponible.
+     Solo asigna a quien todavía no tenga mesa. */
+  sugerirAsignacionMesas(retiroId) {
+    const normaliza = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const inscritos = this.db.inscripciones.filter(i => i.retiroId === retiroId && i.papel === 'caminante');
+    const mesas = this.db.mesas.filter(m => m.retiroId === retiroId);
+    if (!mesas.length) return;
+
+    const yaAsignado = contactoId => this.db.mesaCaminantes.some(o => o.retiroId === retiroId && o.contactoId === contactoId);
+    const ocupacionCount = Object.fromEntries(mesas.map(m => [m.id, this.caminantesDeMesa(m.id).length]));
+    const CAPACIDAD_CAMINANTES = 4; // 3-4 caminantes por mesa, además de líder+colíder
+
+    const pendientes = inscritos.filter(i => !yaAsignado(i.contactoId));
+    for (const ins of pendientes) {
+      const persona = this.contacto(ins.contactoId);
+      if (!persona) continue;
+      const textoConoce = normaliza(ins.mesaConoceA);
+      const validas = mesas.filter(m => {
+        if (ocupacionCount[m.id] >= CAPACIDAD_CAMINANTES) return false;
+        const compañeros = this.caminantesDeMesa(m.id);
+        return !compañeros.some(comp => {
+          const nombreComp = normaliza(`${comp.nombre} ${comp.apellidos}`);
+          if (textoConoce && nombreComp.includes(textoConoce)) return true;
+          const insComp = inscritos.find(x => x.contactoId === comp.id);
+          const conoceComp = normaliza(insComp?.mesaConoceA || '');
+          return conoceComp && normaliza(`${persona.nombre} ${persona.apellidos}`).includes(conoceComp);
+        });
+      });
+      // Los de la misma zona van juntos (importante en retiros combinados entre zonas):
+      // se prioriza una mesa vacía o ya con gente de su misma zona; solo se mezcla si no queda otra opción.
+      const mismaZona = validas.filter(m => {
+        const compañeros = this.caminantesDeMesa(m.id);
+        return !compañeros.length || compañeros.every(comp => comp.zonaId === persona.zonaId);
+      });
+      const candidatas = mismaZona.length ? mismaZona : validas;
+
+      let mejor = null, mejorPuntos = -Infinity;
+      for (const m of candidatas) {
+        const puntos = CAPACIDAD_CAMINANTES - ocupacionCount[m.id]; // preferir repartir equitativamente
+        if (puntos > mejorPuntos) { mejorPuntos = puntos; mejor = m; }
+      }
+      if (mejor) { this.asignarCaminanteMesa(retiroId, persona.id, mejor.id); ocupacionCount[mejor.id]++; }
+    }
+  },
+
+  /* ---------- Sugerencia automática de habitaciones ----------
+     Heurística de mejor esfuerzo (no es una solución óptima): agrupa primero por peticiones
+     explícitas de compañero, y luego rellena por cercanía de localidad, evitando edades muy
+     parecidas y malas combinaciones de ronquidos. Solo toca a quien todavía no tenga habitación
+     asignada — nunca mueve a alguien ya colocado a mano. */
+  sugerirAsignacionHabitaciones(retiroId) {
+    const edad = (fechaNacimiento) => {
+      if (!fechaNacimiento) return null;
+      const hoy = new Date(), n = new Date(fechaNacimiento);
+      let a = hoy.getFullYear() - n.getFullYear();
+      if (hoy.getMonth() < n.getMonth() || (hoy.getMonth() === n.getMonth() && hoy.getDate() < n.getDate())) a--;
+      return a;
+    };
+    const severidadRonquido = (texto) => {
+      const t = (texto || '').toLowerCase();
+      if (t.includes('mucho')) return 2;
+      if (t.includes('poco') || t.includes('a veces')) return 1;
+      return 0;
+    };
+    const toleranciaRonquido = (texto) => {
+      const t = (texto || '').toLowerCase();
+      if (t.includes('no.') || t.startsWith('no')) return 0;
+      if (t.includes('si no hace mucho') || t.includes('bueno')) return 1;
+      return 2; // "Sí." u otra respuesta abierta = tolera bien
+    };
+
+    for (const papel of ['caminante', 'servidor']) {
+      const inscritos = this.db.inscripciones.filter(i => i.retiroId === retiroId && i.papel === papel);
+      const personas = inscritos.map(i => this.contacto(i.contactoId)).filter(Boolean);
+      const habitaciones = this.db.habitaciones.filter(h => h.retiroId === retiroId && h.papel === papel);
+      if (!habitaciones.length) continue;
+
+      const yaAsignado = (contactoId) => this.db.habitacionOcupantes.some(o => o.retiroId === retiroId && o.contactoId === contactoId);
+      const ocupacion = Object.fromEntries(habitaciones.map(h => [h.id, this.ocupantesDe(h.id).length]));
+      let pendientes = personas.filter(p => !yaAsignado(p.id));
+
+      // 1) Peticiones explícitas de compañero: si A pide a B (por nombre) y ambos están libres, van juntos primero.
+      const normaliza = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const parejas = [];
+      pendientes.forEach(p => {
+        if (!p.companeroPreferido) return;
+        const buscado = normaliza(p.companeroPreferido);
+        if (!buscado || buscado === 'indiferente') return;
+        const pareja = pendientes.find(q => q.id !== p.id && normaliza(`${q.nombre} ${q.apellidos}`).includes(buscado));
+        if (pareja && !parejas.some(pr => pr.includes(p.id) || pr.includes(pareja.id))) parejas.push([p.id, pareja.id]);
+      });
+      for (const [id1, id2] of parejas) {
+        const h = habitaciones.find(x => x.capacidad - ocupacion[x.id] >= 2) || habitaciones.find(x => x.capacidad - ocupacion[x.id] >= 1);
+        if (!h) continue;
+        this.asignarOcupante(retiroId, id1, h.id); ocupacion[h.id]++;
+        const h2 = habitaciones.find(x => x.id === h.id && x.capacidad - ocupacion[x.id] >= 1) || h;
+        this.asignarOcupante(retiroId, id2, h2.id); ocupacion[h2.id]++;
+      }
+      pendientes = pendientes.filter(p => !parejas.flat().includes(p.id));
+
+      // 2) Resto: por cercanía de localidad, evitando edades muy parecidas y malas combinaciones de ronquidos.
+      const porLocalidad = {};
+      pendientes.forEach(p => { (porLocalidad[normaliza(p.localidad) || '—'] ||= []).push(p); });
+      const gruposOrdenados = Object.values(porLocalidad).sort((a, b) => b.length - a.length);
+
+      for (const grupo of gruposOrdenados) {
+        for (const persona of grupo) {
+          let mejor = null, mejorPuntos = -Infinity;
+          for (const h of habitaciones) {
+            const libres = h.capacidad - ocupacion[h.id];
+            if (libres <= 0) continue;
+            const ocupantes = this.ocupantesDe(h.id);
+            let puntos = libres === h.capacidad ? 0.5 : 0; // pequeño empujón a abrir habitaciones nuevas si hace falta
+            puntos += h.capacidad === 2 ? 1.5 : h.capacidad === 3 ? -1 : 0; // las de 2 son lo habitual; las de 3, caso excepcional
+            for (const o of ocupantes) {
+              if (normaliza(o.localidad) === normaliza(persona.localidad) && persona.localidad) puntos += 3;
+              const eo = edad(o.fechaNacimiento), ep = edad(persona.fechaNacimiento);
+              if (eo != null && ep != null && Math.abs(eo - ep) < 5) puntos -= 2;
+              const sO = severidadRonquido(o.ronca), sP = severidadRonquido(persona.ronca);
+              const tO = toleranciaRonquido(o.duermeConRoncador), tP = toleranciaRonquido(persona.duermeConRoncador);
+              if (sO >= 2 && tP <= 0) puntos -= 4;
+              if (sP >= 2 && tO <= 0) puntos -= 4;
+              if (sO <= 1 && sP <= 1) puntos += 1;
+            }
+            if (puntos > mejorPuntos) { mejorPuntos = puntos; mejor = h; }
+          }
+          if (mejor) { this.asignarOcupante(retiroId, persona.id, mejor.id); ocupacion[mejor.id]++; }
+        }
+      }
+    }
   }
 };
 

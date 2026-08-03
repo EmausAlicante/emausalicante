@@ -110,6 +110,22 @@ function renderCaminantes(retiro, zona) {
         <div class="campo"><label>DNI</label><input id="fp-dni" style="width:100%"></div>
         <div class="campo"><label>Fecha de nacimiento</label><input id="fp-nacimiento" type="date" style="width:100%"></div>
       </div>
+      <h4>¿Quién te ha invitado?</h4>
+      <div class="grid2">
+        <div class="campo"><label>¿Quién te ha invitado a este retiro?</label><input id="fp-invito" style="width:100%"></div>
+        <div class="campo"><label>Teléfono del mismo</label><input id="fp-invito-tel" style="width:100%"></div>
+      </div>
+      <div class="campo"><label class="check-linea"><input type="checkbox" id="fp-transporte"> ¿Necesitas transporte para ir al lugar del retiro?</label></div>
+      <h4>Personas de contacto</h4>
+      <p class="nota">Nos sirven para el equipo de Palancas, que acompaña a los caminantes durante el retiro.</p>
+      <div class="grid2">
+        <div class="campo"><label>Contacto 1 — nombre y apellidos</label><input id="fp-c1-nombre" style="width:100%"></div>
+        <div class="campo"><label>Contacto 1 — teléfono</label><input id="fp-c1-tel" style="width:100%"></div>
+        <div class="campo"><label>Contacto 1 — relación</label><input id="fp-c1-rel" placeholder="Esposa, Hijo, Hermana, Padres, Amigos…" style="width:100%"></div>
+        <div class="campo"><label>Contacto 2 — nombre y apellidos</label><input id="fp-c2-nombre" style="width:100%"></div>
+        <div class="campo"><label>Contacto 2 — teléfono</label><input id="fp-c2-tel" style="width:100%"></div>
+        <div class="campo"><label>Contacto 2 — relación</label><input id="fp-c2-rel" placeholder="Esposa, Hijo, Hermana, Padres, Amigos…" style="width:100%"></div>
+      </div>
       <div id="fp-error" class="nota" style="color:var(--rojo)"></div>
       <button class="btn ambar" id="fp-enviar" style="width:100%;margin-top:14px">Enviar inscripción</button>
     </div>`);
@@ -127,7 +143,11 @@ function renderCaminantes(retiro, zona) {
     const { data, error } = await sb.rpc('inscribir_caminante', {
       p_retiro_id: retiro.id,
       p_nombre: v('fp-nombre'), p_apellidos: v('fp-apellidos'), p_telefono: v('fp-telefono'),
-      p_email: v('fp-email'), p_dni: v('fp-dni'), p_fecha_nacimiento: v('fp-nacimiento') || null
+      p_email: v('fp-email'), p_dni: v('fp-dni'), p_fecha_nacimiento: v('fp-nacimiento') || null,
+      p_contacto1_nombre: v('fp-c1-nombre'), p_contacto1_telefono: v('fp-c1-tel'), p_contacto1_relacion: v('fp-c1-rel'),
+      p_contacto2_nombre: v('fp-c2-nombre'), p_contacto2_telefono: v('fp-c2-tel'), p_contacto2_relacion: v('fp-c2-rel'),
+      p_quien_invito: v('fp-invito'), p_telefono_invito: v('fp-invito-tel'),
+      p_necesita_transporte: document.getElementById('fp-transporte').checked
     });
     if (error) {
       errorEl.textContent = error.message;
