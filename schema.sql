@@ -618,6 +618,55 @@ create policy "logos_borrado_lideres" on storage.objects for delete to authentic
 -- la versión antigua explícitamente, si no Postgres dejaría las dos coexistiendo.
 drop function if exists inscribir_caminante(uuid, text, text, text, text, text, date);
 
+create extension if not exists unaccent;
+
+-- Recibe el asunto (y remitente, opcional) de un email ya llegado a la bandeja de cartas,
+-- y busca entre los caminantes de retiros NO cerrados a quién corresponde (por nombre +
+-- apellidos dentro del asunto, sin importar mayúsculas ni tildes). Si lo encuentra, registra
+-- la carta. Pensada para llamarse desde un script externo (Google Apps Script) que vigile
+-- esa bandeja de Gmail — por eso es "anon": no hay sesión de líder detrás de esa llamada.
+create or replace function registrar_carta_por_asunto(p_asunto text, p_remitente text default '')
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_asunto_norm text := unaccent(lower(trim(coalesce(p_asunto, ''))));
+  v_match record;
+  v_numero int;
+  v_carta_id uuid;
+begin
+  if v_asunto_norm = '' then
+    return jsonb_build_object('encontrado', false, 'motivo', 'asunto vacío');
+  end if;
+
+  select c.id as contacto_id, i.retiro_id, c.nombre, c.apellidos, r.nombre as retiro_nombre
+    into v_match
+  from inscripciones i
+  join contactos c on c.id = i.contacto_id
+  join retiros r on r.id = i.retiro_id
+  where i.papel = 'caminante' and r.cerrado = false
+    and v_asunto_norm like '%' || unaccent(lower(c.nombre)) || '%'
+    and v_asunto_norm like '%' || unaccent(lower(c.apellidos)) || '%'
+  limit 1;
+
+  if v_match.contacto_id is null then
+    return jsonb_build_object('encontrado', false, 'asunto', p_asunto);
+  end if;
+
+  select coalesce(max(numero), 0) + 1 into v_numero from cartas
+    where retiro_id = v_match.retiro_id and contacto_id = v_match.contacto_id;
+
+  insert into cartas (retiro_id, contacto_id, numero, remitente, fecha)
+  values (v_match.retiro_id, v_match.contacto_id, v_numero, coalesce(p_remitente, ''), current_date)
+  returning id into v_carta_id;
+
+  return jsonb_build_object(
+    'encontrado', true, 'carta_id', v_carta_id, 'contacto_id', v_match.contacto_id,
+    'nombre', v_match.nombre, 'apellidos', v_match.apellidos, 'retiro', v_match.retiro_nombre
+  );
+end;
+$$;
+grant execute on function registrar_carta_por_asunto(text, text) to anon, authenticated;
+
 create or replace function inscribir_caminante(
   p_retiro_id uuid,
   p_nombre text,

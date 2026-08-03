@@ -581,7 +581,10 @@ const App = {
       const buscar = (fila, ...trozos) => {
         const claves = Object.keys(fila);
         for (const t of trozos) {
-          const k = claves.find(c => c.toLowerCase().includes(t.toLowerCase()));
+          // Prioriza una coincidencia EXACTA del nombre de columna (evita que "Dirección" encuentre
+          // antes "Dirección de correo electrónico" solo por ser subcadena) y solo si no la hay, cae a parcial.
+          const exacta = claves.find(c => c.trim().toLowerCase() === t.toLowerCase());
+          const k = exacta || claves.find(c => c.toLowerCase().includes(t.toLowerCase()));
           if (k && fila[k] !== '' && fila[k] != null) return fila[k];
         }
         return '';
@@ -666,7 +669,10 @@ const App = {
       const buscar = (fila, ...trozos) => {
         const claves = Object.keys(fila);
         for (const t of trozos) {
-          const k = claves.find(c => c.toLowerCase().includes(t.toLowerCase()));
+          // Prioriza una coincidencia EXACTA del nombre de columna (evita que "Dirección" encuentre
+          // antes "Dirección de correo electrónico" solo por ser subcadena) y solo si no la hay, cae a parcial.
+          const exacta = claves.find(c => c.trim().toLowerCase() === t.toLowerCase());
+          const k = exacta || claves.find(c => c.toLowerCase().includes(t.toLowerCase()));
           if (k && fila[k] !== '' && fila[k] != null) return fila[k];
         }
         return '';
@@ -2732,6 +2738,12 @@ const App = {
       </div>
 
       <div class="tarjeta">
+        <h3>Teléfonos</h3>
+        <p class="nota">Los teléfonos nuevos ya se guardan en formato +34 XXX XXX XXX automáticamente. Con este botón reformateas de golpe los que ya tenías guardados antes de este cambio.</p>
+        <button class="btn mini secundario" onclick="App.normalizarTelefonosExistentes()">Reformatear teléfonos ya guardados</button>
+      </div>
+
+      <div class="tarjeta">
         <h3>Sesión</h3>
         <p class="nota">Conectado como <strong>${esc(Store.sesion?.user?.email || '')}</strong>. Los datos se guardan en la base de datos compartida: los cambia cualquier líder con sesión y se ven al instante entre todos.</p>
         <button class="btn peligro" onclick="App.cerrarSesion()">Cerrar sesión</button>
@@ -2853,6 +2865,12 @@ const App = {
     const input = document.getElementById('aj-forma-pago');
     if (!input.value.trim()) return;
     Store.nuevaFormaPago(input.value);
+    this.render();
+  },
+
+  normalizarTelefonosExistentes() {
+    const n = Store.normalizarTelefonosExistentes();
+    alert(n ? `Reformateados ${n} teléfonos.` : 'Todos los teléfonos ya estaban bien formateados.');
     this.render();
   },
 

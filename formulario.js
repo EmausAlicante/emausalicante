@@ -8,6 +8,16 @@
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const TALLAS = ['S', 'M', 'L', 'XL', '2XL', '3XL'];
 
+// Igual que en store.js: formatea a "+34 XXX XXX XXX" cualquier teléfono español de 9 dígitos.
+function normalizarTelefono(v) {
+  if (!v) return '';
+  let digitos = String(v).replace(/\D/g, '');
+  if (digitos.startsWith('0034') && digitos.length === 13) digitos = digitos.slice(4);
+  else if (digitos.startsWith('34') && digitos.length === 11) digitos = digitos.slice(2);
+  if (digitos.length !== 9) return String(v).trim();
+  return `+34 ${digitos.slice(0, 3)} ${digitos.slice(3, 6)} ${digitos.slice(6, 9)}`;
+}
+
 function esc(s) {
   return String(s == null ? '' : s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
@@ -142,11 +152,11 @@ function renderCaminantes(retiro, zona) {
     boton.disabled = true; boton.textContent = 'Enviando…';
     const { data, error } = await sb.rpc('inscribir_caminante', {
       p_retiro_id: retiro.id,
-      p_nombre: v('fp-nombre'), p_apellidos: v('fp-apellidos'), p_telefono: v('fp-telefono'),
+      p_nombre: v('fp-nombre'), p_apellidos: v('fp-apellidos'), p_telefono: normalizarTelefono(v('fp-telefono')),
       p_email: v('fp-email'), p_dni: v('fp-dni'), p_fecha_nacimiento: v('fp-nacimiento') || null,
-      p_contacto1_nombre: v('fp-c1-nombre'), p_contacto1_telefono: v('fp-c1-tel'), p_contacto1_relacion: v('fp-c1-rel'),
-      p_contacto2_nombre: v('fp-c2-nombre'), p_contacto2_telefono: v('fp-c2-tel'), p_contacto2_relacion: v('fp-c2-rel'),
-      p_quien_invito: v('fp-invito'), p_telefono_invito: v('fp-invito-tel'),
+      p_contacto1_nombre: v('fp-c1-nombre'), p_contacto1_telefono: normalizarTelefono(v('fp-c1-tel')), p_contacto1_relacion: v('fp-c1-rel'),
+      p_contacto2_nombre: v('fp-c2-nombre'), p_contacto2_telefono: normalizarTelefono(v('fp-c2-tel')), p_contacto2_relacion: v('fp-c2-rel'),
+      p_quien_invito: v('fp-invito'), p_telefono_invito: normalizarTelefono(v('fp-invito-tel')),
       p_necesita_transporte: document.getElementById('fp-transporte').checked
     });
     if (error) {
@@ -259,13 +269,13 @@ function renderServidores(retiro, zona, productos) {
 
     const { data, error } = await sb.rpc('inscribir_servidor', {
       p_retiro_id: retiro.id,
-      p_nombre: v('fs-nombre'), p_apellidos: v('fs-apellidos'), p_telefono: v('fs-telefono'),
+      p_nombre: v('fs-nombre'), p_apellidos: v('fs-apellidos'), p_telefono: normalizarTelefono(v('fs-telefono')),
       p_email: v('fs-email'), p_dni: v('fs-dni'), p_fecha_nacimiento: v('fs-nacimiento') || null,
       p_direccion: v('fs-direccion'), p_cp: v('fs-cp'), p_localidad: v('fs-localidad'),
       p_camino_origen: v('fs-camino'), p_primera_vez: v('fs-primera'), p_donde_sirvio: v('fs-donde-serviste'),
       p_ronca: v('fs-ronca'), p_habitacion_individual: v('fs-individual'), p_dormir_con_roncador: v('fs-con-roncador'),
       p_companero_habitacion: v('fs-companero'),
-      p_emergencia_nombre: v('fs-em-nombre'), p_emergencia_telefono: v('fs-em-telefono'), p_emergencia_relacion: v('fs-em-relacion'),
+      p_emergencia_nombre: v('fs-em-nombre'), p_emergencia_telefono: normalizarTelefono(v('fs-em-telefono')), p_emergencia_relacion: v('fs-em-relacion'),
       p_dni_expedicion: v('fs-dni-exp') || null, p_privacidad_aceptada: true,
       p_pedido_equipacion: pedidoEquipacion
     });

@@ -17,6 +17,18 @@ function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Normaliza a "+34 XXX XXX XXX" cualquier teléfono español de 9 dígitos, venga como venga
+// (con o sin prefijo, con espacios/puntos/guiones...). Si no son 9 dígitos limpios (número
+// extranjero, incompleto, etc.), lo deja tal cual en vez de intentar adivinar mal.
+function normalizarTelefono(v) {
+  if (!v) return '';
+  let digitos = String(v).replace(/\D/g, '');
+  if (digitos.startsWith('0034') && digitos.length === 13) digitos = digitos.slice(4);
+  else if (digitos.startsWith('34') && digitos.length === 11) digitos = digitos.slice(2);
+  if (digitos.length !== 9) return String(v).trim();
+  return `+34 ${digitos.slice(0, 3)} ${digitos.slice(3, 6)} ${digitos.slice(6, 9)}`;
+}
+
 const TALLAS = ['S', 'M', 'L', 'XL', '2XL', '3XL'];
 
 /* ---------- Traducción entre la forma de la app (camelCase) y las tablas (snake_case) ---------- */
@@ -419,6 +431,8 @@ const Store = {
 
   /* ---------- Mutaciones: cambian Store.db al instante y persisten en Supabase en segundo plano ---------- */
   guardarContacto(datos) {
+    if ('telefono' in datos) datos.telefono = normalizarTelefono(datos.telefono);
+    if ('contactoEmergenciaTelefono' in datos) datos.contactoEmergenciaTelefono = normalizarTelefono(datos.contactoEmergenciaTelefono);
     if (datos.id) {
       const c = this.contacto(datos.id);
       Object.assign(c, datos);
@@ -528,6 +542,9 @@ const Store = {
   actualizarInscripcion(id, campos) {
     const i = this.db.inscripciones.find(x => x.id === id);
     if (!i) return;
+    ['palancasContacto1Telefono', 'palancasContacto2Telefono', 'palancasTelefonoInvito'].forEach(campo => {
+      if (campo in campos) campos[campo] = normalizarTelefono(campos[campo]);
+    });
     Object.assign(i, campos);
     const camposDB = {};
     if ('estado' in campos) camposDB.estado = i.estado;
@@ -1021,15 +1038,30 @@ const Store = {
     return f;
   },
 
-  nuevaFormaPago(nombre) {
-    nombre = (nombre || '').trim();
-    if (!nombre) return null;
-    const existente = this.db.formasPago.find(f => f.nombre.toLowerCase() === nombre.toLowerCase());
-    if (existente) return existente;
-    const f = { id: uid(), nombre };
-    this.db.formasPago.push(f);
-    this._persist(sb.from('formas_pago').insert({ id: f.id, nombre }), 'No se pudo crear la forma de pago');
-    return f;
+  // Reformatea de golpe todos los teléfonos ya guardados (contactos e inscripciones) al
+  // formato "+34 XXX XXX XXX". Solo toca los que de verdad cambian. Devuelve cuántos se tocaron.
+  normalizarTelefonosExistentes() {
+    let tocados = 0;
+    this.db.contactos.forEach(c => {
+      const t = normalizarTelefono(c.telefono), te = normalizarTelefono(c.contactoEmergenciaTelefono);
+      if (t !== c.telefono || te !== c.contactoEmergenciaTelefono) {
+        c.telefono = t; c.contactoEmergenciaTelefono = te;
+        this._persist(sb.from('contactos').upsert(contactoADB(c)), 'No se pudo actualizar el teléfono');
+        tocados++;
+      }
+    });
+    this.db.inscripciones.forEach(i => {
+      const t1 = normalizarTelefono(i.palancasContacto1Telefono), t2 = normalizarTelefono(i.palancasContacto2Telefono),
+        ti = normalizarTelefono(i.palancasTelefonoInvito);
+      if (t1 !== i.palancasContacto1Telefono || t2 !== i.palancasContacto2Telefono || ti !== i.palancasTelefonoInvito) {
+        i.palancasContacto1Telefono = t1; i.palancasContacto2Telefono = t2; i.palancasTelefonoInvito = ti;
+        this._persist(sb.from('inscripciones').update({
+          palancas_contacto1_telefono: t1, palancas_contacto2_telefono: t2, palancas_telefono_invito: ti
+        }).eq('id', i.id), 'No se pudo actualizar el teléfono');
+        tocados++;
+      }
+    });
+    return tocados;
   },
 
   /* ---------- Mesas (líder + colíder de mesa + 3-4 caminantes) ---------- */
