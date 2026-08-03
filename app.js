@@ -1451,11 +1451,85 @@ const App = {
       <div class="tarjeta">
         <div class="acciones-linea" style="justify-content:space-between">
           <h3 style="margin:0">🕐 Programa del retiro</h3>
-          <button class="btn mini" onclick="App.dialogoActividad(null, '${r.id}')">+ Añadir al programa</button>
+          <div class="acciones-linea" style="margin:0">
+            <label class="btn secundario mini" style="margin:0;cursor:pointer">⬆ Importar cronograma (Excel)
+              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarProgramaExcel(this, '${r.id}')"></label>
+            <button class="btn mini" onclick="App.dialogoActividad(null, '${r.id}')">+ Añadir al programa</button>
+          </div>
         </div>
         <p class="nota">Cada punto (Administración, comidas, charlas, tercer tiempo…) con su día y hora — así se va formando el minuto a minuto.</p>
         ${puntos.length ? filas : '<div class="vacio">Todavía no hay nada en el programa.</div>'}
       </div>`;
+  },
+
+  // Importa un cronograma tipo "minuto a minuto" (columnas: Día, Hora, Dur, Actividad,
+  // Responsable, Lugar, Notas, Notas Logística). El día viene en relativo (Vier/Sáb/Dom...)
+  // y se calcula sobre la fecha de inicio del retiro; si una fila no trae día, se hereda
+  // el de la fila anterior (así es como vienen estos Excel exportados).
+  importarProgramaExcel(input, retiroId) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const retiro = Store.retiro(retiroId);
+    if (!retiro) return;
+    const lector = new FileReader();
+    lector.onload = (e) => {
+      let filas;
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+        const hoja = wb.Sheets[wb.SheetNames[0]];
+        filas = XLSX.utils.sheet_to_json(hoja, { header: 1, defval: '' });
+      } catch (err) { alert('No se pudo leer el archivo. ¿Es un Excel (.xlsx) o CSV válido?'); input.value = ''; return; }
+
+      // Busca la fila de encabezados (la que tenga "Actividad" en alguna columna) para no
+      // depender de que siempre esté en la misma posición (algunos cronogramas llevan un título arriba).
+      const idxCabecera = filas.findIndex(f => f.some(c => String(c).trim().toLowerCase() === 'actividad'));
+      if (idxCabecera === -1) { alert('No encuentro una columna "Actividad" en el archivo.'); input.value = ''; return; }
+      const cab = filas[idxCabecera].map(c => String(c).trim().toLowerCase());
+      const col = nombre => cab.indexOf(nombre);
+      const iDia = col('dia') !== -1 ? col('dia') : col('día');
+      const iHora = col('hora'), iActividad = col('actividad'), iResponsable = col('responsable'),
+        iLugar = col('lugar'), iNotas = col('notas'), iNotasLog = cab.findIndex(c => c.includes('logística') || c.includes('logistica'));
+
+      const diaMap = { vier: 0, vi: 0, jue: -1, sab: 1, sáb: 1, dom: 2, lun: 3 };
+      const horaDeCelda = (v) => {
+        if (v instanceof Date && !isNaN(v)) return `${String(v.getHours()).padStart(2, '0')}:${String(v.getMinutes()).padStart(2, '0')}`;
+        const m = String(v || '').match(/(\d{1,2})[:.](\d{2})/);
+        return m ? `${m[1].padStart(2, '0')}:${m[2]}` : '';
+      };
+
+      let diaActual = 0, creados = 0;
+      for (let f = idxCabecera + 1; f < filas.length; f++) {
+        const fila = filas[f];
+        if (!fila || !fila.length) continue;
+        const diaTxt = String(fila[iDia] || '').trim().toLowerCase();
+        if (diaTxt && diaMap[diaTxt] !== undefined) diaActual = diaMap[diaTxt];
+        const actividad = String(fila[iActividad] || '').trim();
+        if (!actividad) continue;
+
+        const fecha = new Date(retiro.fechaInicio + 'T00:00:00');
+        fecha.setDate(fecha.getDate() + diaActual);
+        const responsable = iResponsable !== -1 ? String(fila[iResponsable] || '').trim() : '';
+        const notas = iNotas !== -1 ? String(fila[iNotas] || '').trim() : '';
+        const notasLog = iNotasLog !== -1 ? String(fila[iNotasLog] || '').trim() : '';
+
+        Store.guardarActividad({
+          zonaId: retiro.zonaId, retiroId,
+          titulo: actividad,
+          fecha: fecha.toISOString().slice(0, 10),
+          hora: iHora !== -1 ? horaDeCelda(fila[iHora]) : '',
+          lugar: iLugar !== -1 ? String(fila[iLugar] || '').trim() : '',
+          diasAntes: 2,
+          programa: [responsable ? `Responsable: ${responsable}` : '', notas].filter(Boolean).join('\n'),
+          avisos: notasLog
+        });
+        creados++;
+      }
+      alert(`Importados ${creados} puntos del programa.`);
+      input.value = '';
+      this.render();
+    };
+    lector.onerror = () => alert('No se pudo leer el archivo.');
+    lector.readAsArrayBuffer(file);
   },
 
   /* ---------- Equipo de Administración: hasta 2 responsables + ayudantes que acompañan a los caminantes ---------- */
