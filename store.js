@@ -102,7 +102,7 @@ function inscripcionDesdeDB(r) {
     palancasNecesitaTransporte: !!r.palancas_necesita_transporte, palancasMesa: r.palancas_mesa || '',
     palancasAsignadoA: r.palancas_asignado_a || null, palancasContactado: !!r.palancas_contactado,
     llegado: !!r.llegado, importePagado: Number(r.importe_pagado) || 0, mesaConoceA: r.mesa_conoce_a || '',
-    etiquetaImpresa: !!r.etiqueta_impresa,
+    etiquetaImpresa: !!r.etiqueta_impresa, fotoHecha: !!r.foto_hecha,
     palancasContacto1Email: r.palancas_contacto1_email || '', palancasContacto2Email: r.palancas_contacto2_email || '',
     palancasEmailInvito: r.palancas_email_invito || '', familiaresDomingo: r.familiares_domingo || ''
   };
@@ -118,7 +118,7 @@ function inscripcionADB(i) {
     palancas_necesita_transporte: !!i.palancasNecesitaTransporte, palancas_mesa: i.palancasMesa || '',
     palancas_asignado_a: i.palancasAsignadoA || null, palancas_contactado: !!i.palancasContactado,
     llegado: !!i.llegado, importe_pagado: Number(i.importePagado) || 0, mesa_conoce_a: i.mesaConoceA || '',
-    etiqueta_impresa: !!i.etiquetaImpresa,
+    etiqueta_impresa: !!i.etiquetaImpresa, foto_hecha: !!i.fotoHecha,
     palancas_contacto1_email: i.palancasContacto1Email || '', palancas_contacto2_email: i.palancasContacto2Email || '',
     palancas_email_invito: i.palancasEmailInvito || '', familiares_domingo: i.familiaresDomingo || ''
   };
@@ -203,7 +203,7 @@ const Store = {
       documentosR, actividadesR, asistentesR, cartasR,
       productosR, stockR, pedidosR, orgR, ajustesR, plantillasR, lideresR,
       categoriasTesR, movimientosTesR, habitacionesR, ocupantesR, palancasEquipoR, administracionEquipoR, formasPagoR,
-      mesasR, mesaCaminantesR, cocinaEquipoR, tareaResponsablesR
+      mesasR, mesaCaminantesR, cocinaEquipoR, tareaResponsablesR, materialesR
     ] = await Promise.all([
       sb.from('zonas').select('*').order('nombre'),
       sb.from('contactos').select('*'),
@@ -232,7 +232,8 @@ const Store = {
       sb.from('mesas').select('*'),
       sb.from('mesa_caminantes').select('*'),
       sb.from('retiro_cocina_equipo').select('*'),
-      sb.from('retiro_tarea_responsables').select('*')
+      sb.from('retiro_tarea_responsables').select('*'),
+      sb.from('materiales').select('*').order('nombre')
     ]);
 
     this.db = {
@@ -252,6 +253,11 @@ const Store = {
         stock: (stockR.data || []).map(s => ({ productoId: s.producto_id, talla: s.talla, cantidad: s.cantidad })),
         pedidos: (pedidosR.data || []).map(p => ({ id: p.id, productoId: p.producto_id, talla: p.talla, contactoId: p.contacto_id, retiroId: p.retiro_id, fecha: p.fecha, atendido: p.atendido }))
       },
+      materiales: (materialesR.data || []).map(m => ({
+        id: m.id, nombre: m.nombre, unidadCalculo: m.unidad_calculo,
+        cantidadPorUnidad: m.cantidad_por_unidad, extraFijo: m.extra_fijo || 0,
+        stockActual: m.stock_actual, esDeBolsa: m.es_de_bolsa, categoria: m.categoria || 'retiro'
+      })),
       plantillas: plantillasR.data ? {
         emailAsunto: plantillasR.data.email_asunto || '', emailCuerpo: plantillasR.data.email_cuerpo || '',
         whatsapp: plantillasR.data.whatsapp || '',
@@ -560,6 +566,7 @@ const Store = {
       palancasNecesitaTransporte: 'palancas_necesita_transporte', palancasMesa: 'palancas_mesa',
       palancasAsignadoA: 'palancas_asignado_a', palancasContactado: 'palancas_contactado',
       llegado: 'llegado', importePagado: 'importe_pagado', mesaConoceA: 'mesa_conoce_a', etiquetaImpresa: 'etiqueta_impresa',
+      fotoHecha: 'foto_hecha',
       palancasContacto1Email: 'palancas_contacto1_email', palancasContacto2Email: 'palancas_contacto2_email',
       palancasEmailInvito: 'palancas_email_invito', familiaresDomingo: 'familiares_domingo'
     };
@@ -776,6 +783,64 @@ const Store = {
       resultado = 'pedido';
     }
     return resultado;
+  },
+
+  /* ---------- Materiales generales (bolsas, sobres, papelería, etc.) ---------- */
+  fijarStockMaterial(id, stockActual) {
+    const m = this.db.materiales.find(x => x.id === id);
+    if (!m) return;
+    m.stockActual = stockActual;
+    this._persist(sb.from('materiales').update({ stock_actual: stockActual }).eq('id', id), 'No se pudo guardar el stock del material');
+  },
+
+  fijarCantidadFijaMaterial(id, cantidadPorUnidad) {
+    const m = this.db.materiales.find(x => x.id === id);
+    if (!m) return;
+    m.cantidadPorUnidad = cantidadPorUnidad;
+    this._persist(sb.from('materiales').update({ cantidad_por_unidad: cantidadPorUnidad }).eq('id', id), 'No se pudo guardar la cantidad del material');
+  },
+
+  fijarExtraMaterial(id, extraFijo) {
+    const m = this.db.materiales.find(x => x.id === id);
+    if (!m) return;
+    m.extraFijo = extraFijo;
+    this._persist(sb.from('materiales').update({ extra_fijo: extraFijo }).eq('id', id), 'No se pudo guardar el margen extra del material');
+  },
+
+  // Cuántas unidades de un material hacen falta para un retiro concreto, según cuántos
+  // caminantes/servidores estén inscritos (o una cantidad fija, no ligada a inscritos).
+  necesarioMaterial(material, retiroId) {
+    const inscritos = this.inscripcionesDe(retiroId);
+    const nCaminantes = inscritos.filter(i => i.papel === 'caminante').length;
+    const nServidores = inscritos.filter(i => i.papel === 'servidor').length;
+    const extra = material.extraFijo || 0;
+    switch (material.unidadCalculo) {
+      case 'caminante': return nCaminantes * material.cantidadPorUnidad + extra;
+      case 'servidor': return nServidores * material.cantidadPorUnidad + extra;
+      case 'persona': return (nCaminantes + nServidores) * material.cantidadPorUnidad + extra;
+      default: return material.cantidadPorUnidad + extra; // 'fijo'
+    }
+  },
+
+  // Resumen de materiales para un retiro: lo necesario, lo que ya hay en stock y lo que falta comprar.
+  resumenMaterialesRetiro(retiroId) {
+    return this.db.materiales.map(m => {
+      const necesario = this.necesarioMaterial(m, retiroId);
+      const aComprar = Math.max(0, necesario - m.stockActual);
+      return { material: m, necesario, aComprar };
+    });
+  },
+
+  // Caminantes de un retiro con la talla de polo que pidieron en su bolsa (para las etiquetas).
+  bolsasCaminantesDe(retiroId) {
+    return this.inscripcionesDe(retiroId)
+      .filter(i => i.papel === 'caminante')
+      .map(i => {
+        const c = this.contacto(i.contactoId);
+        const pedido = (i.detalles?.pedidoEquipacion || [])[0];
+        return c ? { contacto: c, tallaPolo: pedido?.talla || '—' } : null;
+      })
+      .filter(Boolean);
   },
 
   marcarPedidoAtendido(id, atendido) {

@@ -1072,6 +1072,7 @@ const App = {
           <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">${opcionesFormasPago(i.metodoPago)}</select>
           <input type="number" min="0" step="0.01" value="${i.importePagado || 0}" title="Importe pagado (€)" style="width:80px;margin-top:4px" onchange="App.insCampo('${i.id}', 'importePagado', parseFloat(this.value)||0, true)">
           ${i.papel === 'caminante' ? `<label class="check-linea" style="margin:4px 0 0"><input type="checkbox" ${i.llegado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'llegado', this.checked, true)"> Ha llegado</label>` : ''}
+          <label class="check-linea" style="margin:4px 0 0"><input type="checkbox" ${i.fotoHecha ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'fotoHecha', this.checked, true)"> 📷 Foto hecha</label>
         </td>
         <td><input value="${esc(i.notas)}" placeholder="Notas…" onchange="App.insCampo('${i.id}', 'notas', this.value)" style="width:140px"></td>
         <td>
@@ -2582,7 +2583,8 @@ const App = {
       <div class="tarjeta">
         <h3>Pedidos pendientes${pendientes ? ` · <span style="color:var(--ambar)">${pendientes} por hacer</span>` : ''}</h3>
         ${pedidos.length ? `<div class="tabla-scroll"><table><thead><tr><th></th><th>Prenda</th><th>Solicitado por</th><th>Retiro</th><th>Fecha</th><th></th></tr></thead><tbody>${filasPedidos}</tbody></table></div>` : '<div class="vacio">No hay pedidos pendientes.</div>'}
-      </div>`;
+      </div>
+      ${this.bloqueMateriales()}`;
   },
 
   fijarStock(productoId, talla, valor) {
@@ -2597,6 +2599,138 @@ const App = {
   borrarPedido(id) {
     Store.borrarPedido(id);
     this.render();
+  },
+
+  /* ---------- Materiales y bolsas del caminante ---------- */
+  setMatRetiro(id) { this.ui.matRetiroId = id; this.render(); },
+
+  bloqueMateriales() {
+    const proximos = Store.retirosProximos('all');
+    const r = proximos.find(x => x.id === this.ui.matRetiroId) || proximos[0] || null;
+    const opciones = proximos.map(x =>
+      `<option value="${x.id}" ${r && r.id === x.id ? 'selected' : ''}>${esc(x.nombre)} · ${fmtRango(x.fechaInicio, x.fechaFin)}</option>`).join('');
+
+    if (!r) {
+      return `<div class="tarjeta"><h3>🎒 Bolsas y materiales</h3><p class="vacio">No hay ningún retiro programado todavía.</p></div>`;
+    }
+
+    const nCaminantes = Store.inscripcionesDe(r.id).filter(i => i.papel === 'caminante').length;
+    const nServidores = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').length;
+    const resumen = Store.resumenMaterialesRetiro(r.id);
+    const unidadTexto = { caminante: 'por caminante', servidor: 'por servidor', persona: 'por persona', fijo: 'fijo' };
+    const nombresCategoria = { caminante: '🚶 Para los caminantes', servidor: '🙌 Para los servidores', retiro: '🏕️ Para el retiro (general)' };
+
+    const filaMaterial = ({ material: m, necesario, aComprar }) => `
+      <tr>
+        <td><strong>${esc(m.nombre)}</strong></td>
+        <td class="nota">${m.unidadCalculo === 'fijo'
+          ? `<input type="number" min="0" style="width:64px" value="${m.cantidadPorUnidad}" onchange="App.fijarCantidadMaterial('${m.id}', this.value)">`
+          : `${m.cantidadPorUnidad} ${unidadTexto[m.unidadCalculo]} + <input type="number" min="0" style="width:52px" value="${m.extraFijo || 0}" title="Margen extra fijo" onchange="App.fijarExtraMaterial('${m.id}', this.value)"> extra`}</td>
+        <td>${necesario}</td>
+        <td><input type="number" min="0" style="width:64px" value="${m.stockActual}" onchange="App.fijarStockMaterial('${m.id}', this.value)"></td>
+        <td>${aComprar > 0 ? `<strong style="color:var(--ambar, #a86a14)">${aComprar}</strong>` : '✔'}</td>
+      </tr>`;
+
+    const bloquesCategoria = ['caminante', 'servidor', 'retiro'].map(cat => {
+      const items = resumen.filter(x => x.material.categoria === cat);
+      if (!items.length) return '';
+      return `
+        <h4 style="margin:16px 0 6px">${nombresCategoria[cat]}</h4>
+        <div class="tabla-scroll"><table><thead><tr><th>Material</th><th>Cálculo</th><th>Necesario</th><th>En stock</th><th>A comprar</th></tr></thead>
+        <tbody>${items.map(filaMaterial).join('')}</tbody></table></div>`;
+    }).join('');
+
+    return `
+      <div class="tarjeta">
+        <div class="acciones-linea" style="justify-content:space-between">
+          <h3 style="margin:0">🎒 Bolsas y materiales</h3>
+          <div class="acciones-linea">
+            <button class="btn secundario mini" onclick="App.imprimirListaMateriales('${r.id}')">📄 Lista de compra (PDF)</button>
+            <button class="btn secundario mini" onclick="App.imprimirEtiquetasBolsas('${r.id}')">🏷️ Etiquetas de bolsas</button>
+          </div>
+        </div>
+        <div class="campo"><label>Retiro</label><select onchange="App.setMatRetiro(this.value)">${opciones}</select></div>
+        <p class="nota">${nCaminantes} caminantes · ${nServidores} servidores inscritos en «${esc(r.nombre)}». Cada caminante lleva 3 sobres grandes (cartas, regalo y foto) con su polo (talla pedida al inscribirse, se gestiona en Stock inicial más arriba), agua bendita, biblia y el regalo (rosario). Cada servidor lleva su cruz y un sobre con la foto de grupo. La foto de recuerdo se marca por persona en Inscripciones.</p>
+        ${bloquesCategoria}
+      </div>`;
+  },
+
+  fijarStockMaterial(id, valor) {
+    Store.fijarStockMaterial(id, Math.max(0, parseInt(valor, 10) || 0));
+    this.render();
+  },
+
+  fijarCantidadMaterial(id, valor) {
+    Store.fijarCantidadFijaMaterial(id, Math.max(0, parseInt(valor, 10) || 0));
+    this.render();
+  },
+
+  fijarExtraMaterial(id, valor) {
+    Store.fijarExtraMaterial(id, Math.max(0, parseInt(valor, 10) || 0));
+    this.render();
+  },
+
+  imprimirListaMateriales(retiroId) {
+    const r = Store.retiro(retiroId);
+    const resumen = Store.resumenMaterialesRetiro(retiroId).filter(x => x.aComprar > 0);
+    const nombresCategoria = { caminante: 'Para los caminantes', servidor: 'Para los servidores', retiro: 'Para el retiro (general)' };
+    const bloques = ['caminante', 'servidor', 'retiro'].map(cat => {
+      const items = resumen.filter(x => x.material.categoria === cat);
+      if (!items.length) return '';
+      const filas = items.map(({ material: m, aComprar }) =>
+        `<tr><td>${esc(m.nombre)}</td><td style="text-align:right"><strong>${aComprar}</strong></td></tr>`).join('');
+      return `<h3>${nombresCategoria[cat]}</h3><table><thead><tr><th>Material</th><th style="text-align:right">Cantidad a comprar</th></tr></thead><tbody>${filas}</tbody></table>`;
+    }).join('');
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+      <html><head><title>Lista de compra · ${esc(r?.nombre || '')}</title>
+      <style>
+        @page { margin: 15mm; }
+        body{font-family:sans-serif;margin:0;padding:20px}
+        h1{font-size:16pt} h3{font-size:12pt;margin-top:22px} .nota{color:#666;font-size:10pt;margin-bottom:20px}
+        table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}
+        th{color:#666;font-size:10pt}
+      </style>
+      </head><body>
+        <h1>Lista de compra · ${esc(r?.nombre || '')}</h1>
+        <p class="nota">Materiales que faltan por comprar (ya descontado lo que hay en stock). Generado el ${fmtCorto(hoyISO())}.</p>
+        ${bloques || '<p>No falta comprar nada, hay stock suficiente de todo.</p>'}
+      </body></html>`);
+    ventana.document.close();
+    ventana.print();
+  },
+
+  imprimirEtiquetasBolsas(retiroId) {
+    const r = Store.retiro(retiroId);
+    const bolsas = Store.bolsasCaminantesDe(retiroId);
+    const tarjetas = bolsas.map(({ contacto: c, tallaPolo }) => `
+      <div class="etiqueta">
+        <div class="etiqueta-nombre">${esc(c.nombre)}</div>
+        <div class="etiqueta-apellidos">${esc(c.apellidos)}</div>
+        <div class="etiqueta-papel">CAMINANTE</div>
+        <div class="etiqueta-bolsa">Polo talla ${esc(tallaPolo)} · Agua bendita · Biblia · Regalo</div>
+      </div>`).join('');
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+      <html><head><title>Etiquetas de bolsas · ${esc(r?.nombre || '')}</title>
+      <style>
+        @page { margin: 10mm; }
+        body{font-family:sans-serif;margin:0}
+        .hoja{display:grid;grid-template-columns:1fr 1fr;gap:6mm}
+        .etiqueta{
+          border:1px dashed #999;border-radius:8px;padding:10mm 6mm;
+          width:90mm;height:55mm;box-sizing:border-box;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+          page-break-inside:avoid;
+        }
+        .etiqueta-nombre{font-size:22pt;font-weight:700}
+        .etiqueta-apellidos{font-size:16pt;margin-bottom:8px}
+        .etiqueta-papel{font-size:11pt;letter-spacing:2px;color:#555;margin-top:6px}
+        .etiqueta-bolsa{font-size:9pt;color:#999;margin-top:4px}
+      </style>
+      </head><body><div class="hoja">${tarjetas || '<p>No hay caminantes inscritos.</p>'}</div></body></html>`);
+    ventana.document.close();
+    ventana.print();
   },
 
   /* ============ Formulario público: enlace para compartir ============ */
