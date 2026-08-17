@@ -2724,7 +2724,7 @@ const App = {
     const nCaminantes = Store.inscripcionesDe(r.id).filter(i => i.papel === 'caminante').length;
     const nServidores = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').length;
     const resumen = Store.resumenMaterialesRetiro(r.id);
-    const nombresCategoria = { caminante: '🚶 Para los caminantes', servidor: '🙌 Para los servidores', retiro: '🏕️ Para el retiro (general)' };
+    const nombresCategoria = { caminante: '🚶 Para los caminantes', servidor: '🙌 Para los servidores', retiro: '🏕️ Para el retiro (general)', cafeteria: '☕ Cafetería / snacks' };
 
     const filaMaterial = ({ material: m, necesario, aComprar }) => `
       <tr>
@@ -2739,7 +2739,7 @@ const App = {
         <td>${aComprar > 0 ? `<strong style="color:var(--ambar, #a86a14)">${aComprar}</strong>` : '✔'}</td>
       </tr>`;
 
-    const bloquesCategoria = ['caminante', 'servidor', 'retiro'].map(cat => {
+    const bloquesCategoria = ['caminante', 'servidor', 'retiro', 'cafeteria'].map(cat => {
       const items = resumen.filter(x => x.material.categoria === cat);
       if (!items.length) return '';
       return `
@@ -2786,8 +2786,8 @@ const App = {
   imprimirListaMateriales(retiroId) {
     const r = Store.retiro(retiroId);
     const resumen = Store.resumenMaterialesRetiro(retiroId).filter(x => x.aComprar > 0);
-    const nombresCategoria = { caminante: 'Para los caminantes', servidor: 'Para los servidores', retiro: 'Para el retiro (general)' };
-    const bloques = ['caminante', 'servidor', 'retiro'].map(cat => {
+    const nombresCategoria = { caminante: 'Para los caminantes', servidor: 'Para los servidores', retiro: 'Para el retiro (general)', cafeteria: 'Cafetería / snacks' };
+    const bloques = ['caminante', 'servidor', 'retiro', 'cafeteria'].map(cat => {
       const items = resumen.filter(x => x.material.categoria === cat);
       if (!items.length) return '';
       const filas = items.map(({ material: m, aComprar }) =>
