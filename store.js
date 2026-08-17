@@ -79,7 +79,8 @@ function retiroDesdeDB(r) {
   return {
     id: r.id, zonaId: r.zona_id, nombre: r.nombre, fechaInicio: r.fecha_inicio, fechaFin: r.fecha_fin,
     lugar: r.lugar || '', precio: r.precio, suplementoIndividual: r.suplemento_individual, infoExtra: r.info_extra || '',
-    creado: r.creado, cerrado: r.cerrado, acta: r.acta || null
+    creado: r.creado, cerrado: r.cerrado, acta: r.acta || null, angelitos: r.angelitos || 0,
+    precioAngelito: r.precio_angelito
   };
 }
 function retiroADB(r) {
@@ -87,7 +88,9 @@ function retiroADB(r) {
     id: r.id, zona_id: r.zonaId, nombre: r.nombre, fecha_inicio: r.fechaInicio, fecha_fin: r.fechaFin,
     lugar: r.lugar || '', precio: r.precio === '' || r.precio == null ? null : r.precio,
     suplemento_individual: r.suplementoIndividual === '' || r.suplementoIndividual == null ? null : r.suplementoIndividual,
-    info_extra: r.infoExtra || '', creado: r.creado, cerrado: !!r.cerrado, acta: r.acta || null
+    info_extra: r.infoExtra || '', creado: r.creado, cerrado: !!r.cerrado, acta: r.acta || null,
+    angelitos: r.angelitos || 0,
+    precio_angelito: r.precioAngelito === '' || r.precioAngelito == null ? null : r.precioAngelito
   };
 }
 
@@ -102,7 +105,7 @@ function inscripcionDesdeDB(r) {
     palancasNecesitaTransporte: !!r.palancas_necesita_transporte, palancasMesa: r.palancas_mesa || '',
     palancasAsignadoA: r.palancas_asignado_a || null, palancasContactado: !!r.palancas_contactado,
     llegado: !!r.llegado, importePagado: Number(r.importe_pagado) || 0, mesaConoceA: r.mesa_conoce_a || '',
-    etiquetaImpresa: !!r.etiqueta_impresa, fotoHecha: !!r.foto_hecha,
+    etiquetaImpresa: !!r.etiqueta_impresa, fotoHecha: !!r.foto_hecha, esAngelito: !!r.es_angelito,
     palancasContacto1Email: r.palancas_contacto1_email || '', palancasContacto2Email: r.palancas_contacto2_email || '',
     palancasEmailInvito: r.palancas_email_invito || '', familiaresDomingo: r.familiares_domingo || ''
   };
@@ -118,7 +121,7 @@ function inscripcionADB(i) {
     palancas_necesita_transporte: !!i.palancasNecesitaTransporte, palancas_mesa: i.palancasMesa || '',
     palancas_asignado_a: i.palancasAsignadoA || null, palancas_contactado: !!i.palancasContactado,
     llegado: !!i.llegado, importe_pagado: Number(i.importePagado) || 0, mesa_conoce_a: i.mesaConoceA || '',
-    etiqueta_impresa: !!i.etiquetaImpresa, foto_hecha: !!i.fotoHecha,
+    etiqueta_impresa: !!i.etiquetaImpresa, foto_hecha: !!i.fotoHecha, es_angelito: !!i.esAngelito,
     palancas_contacto1_email: i.palancasContacto1Email || '', palancas_contacto2_email: i.palancasContacto2Email || '',
     palancas_email_invito: i.palancasEmailInvito || '', familiares_domingo: i.familiaresDomingo || ''
   };
@@ -256,8 +259,8 @@ const Store = {
       },
       materiales: (materialesR.data || []).map(m => ({
         id: m.id, nombre: m.nombre,
-        porCaminante: m.por_caminante || 0, porServidor: m.por_servidor || 0, extraFijo: m.extra_fijo || 0,
-        stockActual: m.stock_actual, esDeBolsa: m.es_de_bolsa, categoria: m.categoria || 'retiro'
+        porCaminante: m.por_caminante || 0, porServidor: m.por_servidor || 0, porAngelito: m.por_angelito || 0,
+        extraFijo: m.extra_fijo || 0, stockActual: m.stock_actual, esDeBolsa: m.es_de_bolsa, categoria: m.categoria || 'retiro'
       })),
       plantillas: plantillasR.data ? {
         emailAsunto: plantillasR.data.email_asunto || '', emailCuerpo: plantillasR.data.email_cuerpo || '',
@@ -560,6 +563,7 @@ const Store = {
     if ('metodoPago' in campos) camposDB.metodo_pago = i.metodoPago;
     if ('notas' in campos) camposDB.notas = i.notas;
     if ('papel' in campos) camposDB.papel = i.papel;
+    if ('detalles' in campos) camposDB.detalles = i.detalles;
     const mapaPalancas = {
       palancasContacto1Nombre: 'palancas_contacto1_nombre', palancasContacto1Telefono: 'palancas_contacto1_telefono',
       palancasContacto1Relacion: 'palancas_contacto1_relacion', palancasContacto2Nombre: 'palancas_contacto2_nombre',
@@ -568,7 +572,7 @@ const Store = {
       palancasNecesitaTransporte: 'palancas_necesita_transporte', palancasMesa: 'palancas_mesa',
       palancasAsignadoA: 'palancas_asignado_a', palancasContactado: 'palancas_contactado',
       llegado: 'llegado', importePagado: 'importe_pagado', mesaConoceA: 'mesa_conoce_a', etiquetaImpresa: 'etiqueta_impresa',
-      fotoHecha: 'foto_hecha',
+      fotoHecha: 'foto_hecha', esAngelito: 'es_angelito',
       palancasContacto1Email: 'palancas_contacto1_email', palancasContacto2Email: 'palancas_contacto2_email',
       palancasEmailInvito: 'palancas_email_invito', familiaresDomingo: 'familiares_domingo'
     };
@@ -1275,7 +1279,7 @@ const Store = {
     };
 
     for (const papel of ['caminante', 'servidor']) {
-      const inscritos = this.db.inscripciones.filter(i => i.retiroId === retiroId && i.papel === papel);
+      const inscritos = this.db.inscripciones.filter(i => i.retiroId === retiroId && i.papel === papel && !i.esAngelito);
       const personas = inscritos.map(i => this.contacto(i.contactoId)).filter(Boolean);
       const habitaciones = this.db.habitaciones.filter(h => h.retiroId === retiroId && h.papel === papel);
       if (!habitaciones.length) continue;
