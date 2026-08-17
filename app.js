@@ -1268,6 +1268,7 @@ const App = {
       ${this.bloqueEquipoAdministracion(r)}
       ${this.bloqueListaAdministracion(r)}
       ${this.bloqueEquipoCocina(r)}
+      ${this.bloqueEquipoMegafonia(r)}
       ${this.bloqueListaAlergias(r)}
       ${this.bloqueEtiquetas(r)}
       ${this.bloquePrograma(r)}`;
@@ -1399,6 +1400,56 @@ const App = {
   },
   quitarDeCocina(retiroId, contactoId) {
     Store.quitarDeCocina(retiroId, contactoId);
+    this.render();
+  },
+
+  /* ---------- Equipo de Megafonía: responsable + ayudantes (se encargan del sonido) ---------- */
+  bloqueEquipoMegafonia(r) {
+    const inscritosServidor = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').map(i => Store.contacto(i.contactoId)).filter(Boolean);
+    const equipo = Store.equipoMegafoniaDe(r.id);
+    const libres = inscritosServidor.filter(c => c.id !== equipo.responsable && !equipo.ayudantes.includes(c.id));
+    const nombreDe = id => { const c = Store.contacto(id); return c ? `${c.nombre} ${c.apellidos}` : '—'; };
+
+    return `
+      <div class="tarjeta">
+        <h3>🔊 Equipo de Megafonía</h3>
+        <p class="nota">Se encargan del sonido durante el retiro. Responsable y ayudantes deben estar ya inscritos como servidores en este retiro.</p>
+        <div class="campo"><label>Responsable</label>
+          <select onchange="App.setResponsableMegafonia('${r.id}', this.value)">
+            <option value="">— sin asignar —</option>
+            ${inscritosServidor.map(c => `<option value="${c.id}" ${equipo.responsable === c.id ? 'selected' : ''}>${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="campo"><label>Ayudantes</label>
+          <div class="acciones-linea">
+            ${equipo.ayudantes.map(id => `<span class="badge servidor">${esc(nombreDe(id))} <a href="#" onclick="event.preventDefault();App.quitarDeMegafonia('${r.id}','${id}')" style="margin-left:6px">✕</a></span>`).join('') || '<span class="vacio">Sin ayudantes todavía.</span>'}
+          </div>
+          ${libres.length ? `<div class="acciones-linea" style="margin-top:8px">
+            <select id="megafonia-ayudante-${r.id}">${libres.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)}</option>`).join('')}</select>
+            <button class="btn mini secundario" onclick="App.agregarAyudanteMegafonia('${r.id}')">+ Añadir ayudante</button>
+          </div>` : ''}
+        </div>
+      </div>`;
+  },
+
+  setResponsableMegafonia(retiroId, contactoId) {
+    if (contactoId) {
+      const tarea = this.esLiderOColiderDeMesa(retiroId, contactoId);
+      if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como responsable de Megafonía?`)) return;
+    }
+    Store.asignarResponsableMegafonia(retiroId, contactoId || null);
+    this.render();
+  },
+  agregarAyudanteMegafonia(retiroId) {
+    const sel = document.getElementById(`megafonia-ayudante-${retiroId}`);
+    if (!sel || !sel.value) return;
+    const tarea = this.esLiderOColiderDeMesa(retiroId, sel.value);
+    if (tarea && !confirm(`Esta persona ya es ${tarea} en este retiro; debería centrarse solo en sus caminantes. ¿Asignarlo igualmente como ayudante de Megafonía?`)) return;
+    Store.agregarAyudanteMegafonia(retiroId, sel.value);
+    this.render();
+  },
+  quitarDeMegafonia(retiroId, contactoId) {
+    Store.quitarDeMegafonia(retiroId, contactoId);
     this.render();
   },
 
@@ -2617,15 +2668,16 @@ const App = {
     const nCaminantes = Store.inscripcionesDe(r.id).filter(i => i.papel === 'caminante').length;
     const nServidores = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').length;
     const resumen = Store.resumenMaterialesRetiro(r.id);
-    const unidadTexto = { caminante: 'por caminante', servidor: 'por servidor', persona: 'por persona', fijo: 'fijo' };
     const nombresCategoria = { caminante: '🚶 Para los caminantes', servidor: '🙌 Para los servidores', retiro: '🏕️ Para el retiro (general)' };
 
     const filaMaterial = ({ material: m, necesario, aComprar }) => `
       <tr>
         <td><strong>${esc(m.nombre)}</strong></td>
-        <td class="nota">${m.unidadCalculo === 'fijo'
-          ? `<input type="number" min="0" style="width:64px" value="${m.cantidadPorUnidad}" onchange="App.fijarCantidadMaterial('${m.id}', this.value)">`
-          : `${m.cantidadPorUnidad} ${unidadTexto[m.unidadCalculo]} + <input type="number" min="0" style="width:52px" value="${m.extraFijo || 0}" title="Margen extra fijo" onchange="App.fijarExtraMaterial('${m.id}', this.value)"> extra`}</td>
+        <td class="nota" style="white-space:nowrap">
+          <input type="number" min="0" style="width:48px" title="Por cada caminante" value="${m.porCaminante}" onchange="App.fijarPorCaminanteMaterial('${m.id}', this.value)">/camin.
+          <input type="number" min="0" style="width:48px" title="Por cada servidor" value="${m.porServidor}" onchange="App.fijarPorServidorMaterial('${m.id}', this.value)">/serv.
+          + <input type="number" min="0" style="width:48px" title="Cantidad fija extra" value="${m.extraFijo}" onchange="App.fijarExtraMaterial('${m.id}', this.value)">
+        </td>
         <td>${necesario}</td>
         <td><input type="number" min="0" style="width:64px" value="${m.stockActual}" onchange="App.fijarStockMaterial('${m.id}', this.value)"></td>
         <td>${aComprar > 0 ? `<strong style="color:var(--ambar, #a86a14)">${aComprar}</strong>` : '✔'}</td>
@@ -2650,7 +2702,7 @@ const App = {
           </div>
         </div>
         <div class="campo"><label>Retiro</label><select onchange="App.setMatRetiro(this.value)">${opciones}</select></div>
-        <p class="nota">${nCaminantes} caminantes · ${nServidores} servidores inscritos en «${esc(r.nombre)}». Cada caminante lleva 3 sobres grandes (cartas, regalo y foto) con su polo (talla pedida al inscribirse, se gestiona en Stock inicial más arriba), agua bendita, biblia y el regalo (rosario). Cada servidor lleva su cruz y un sobre con la foto de grupo. La foto de recuerdo se marca por persona en Inscripciones.</p>
+        <p class="nota">${nCaminantes} caminantes · ${nServidores} servidores inscritos en «${esc(r.nombre)}». Cada caminante lleva 3 sobres grandes (cartas, regalo y foto) con su polo (talla pedida al inscribirse, se gestiona en Stock inicial más arriba), agua bendita, biblia y el regalo (rosario). Cada servidor lleva su cruz. Los sobres grandes ya suman ambos grupos en una sola fila. La foto de recuerdo se marca por persona en Inscripciones.</p>
         ${bloquesCategoria}
       </div>`;
   },
@@ -2660,8 +2712,13 @@ const App = {
     this.render();
   },
 
-  fijarCantidadMaterial(id, valor) {
-    Store.fijarCantidadFijaMaterial(id, Math.max(0, parseInt(valor, 10) || 0));
+  fijarPorCaminanteMaterial(id, valor) {
+    Store.fijarPorCaminanteMaterial(id, Math.max(0, parseInt(valor, 10) || 0));
+    this.render();
+  },
+
+  fijarPorServidorMaterial(id, valor) {
+    Store.fijarPorServidorMaterial(id, Math.max(0, parseInt(valor, 10) || 0));
     this.render();
   },
 

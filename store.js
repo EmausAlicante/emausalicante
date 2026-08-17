@@ -203,7 +203,7 @@ const Store = {
       documentosR, actividadesR, asistentesR, cartasR,
       productosR, stockR, pedidosR, orgR, ajustesR, plantillasR, lideresR,
       categoriasTesR, movimientosTesR, habitacionesR, ocupantesR, palancasEquipoR, administracionEquipoR, formasPagoR,
-      mesasR, mesaCaminantesR, cocinaEquipoR, tareaResponsablesR, materialesR
+      mesasR, mesaCaminantesR, cocinaEquipoR, tareaResponsablesR, materialesR, megafoniaEquipoR
     ] = await Promise.all([
       sb.from('zonas').select('*').order('nombre'),
       sb.from('contactos').select('*'),
@@ -233,7 +233,8 @@ const Store = {
       sb.from('mesa_caminantes').select('*'),
       sb.from('retiro_cocina_equipo').select('*'),
       sb.from('retiro_tarea_responsables').select('*'),
-      sb.from('materiales').select('*').order('nombre')
+      sb.from('materiales').select('*').order('nombre'),
+      sb.from('retiro_megafonia_equipo').select('*')
     ]);
 
     this.db = {
@@ -254,8 +255,8 @@ const Store = {
         pedidos: (pedidosR.data || []).map(p => ({ id: p.id, productoId: p.producto_id, talla: p.talla, contactoId: p.contacto_id, retiroId: p.retiro_id, fecha: p.fecha, atendido: p.atendido }))
       },
       materiales: (materialesR.data || []).map(m => ({
-        id: m.id, nombre: m.nombre, unidadCalculo: m.unidad_calculo,
-        cantidadPorUnidad: m.cantidad_por_unidad, extraFijo: m.extra_fijo || 0,
+        id: m.id, nombre: m.nombre,
+        porCaminante: m.por_caminante || 0, porServidor: m.por_servidor || 0, extraFijo: m.extra_fijo || 0,
         stockActual: m.stock_actual, esDeBolsa: m.es_de_bolsa, categoria: m.categoria || 'retiro'
       })),
       plantillas: plantillasR.data ? {
@@ -279,6 +280,7 @@ const Store = {
       mesas: (mesasR.data || []).map(m => ({ id: m.id, retiroId: m.retiro_id, nombre: m.nombre || '', liderContactoId: m.lider_contacto_id, coliderContactoId: m.colider_contacto_id })),
       mesaCaminantes: (mesaCaminantesR.data || []).map(m => ({ mesaId: m.mesa_id, contactoId: m.contacto_id, retiroId: m.retiro_id })),
       cocinaEquipo: (cocinaEquipoR.data || []).map(p => ({ retiroId: p.retiro_id, contactoId: p.contacto_id, rol: p.rol })),
+      megafoniaEquipo: (megafoniaEquipoR.data || []).map(p => ({ retiroId: p.retiro_id, contactoId: p.contacto_id, rol: p.rol })),
       tareaResponsables: (tareaResponsablesR.data || []).map(t => ({ retiroId: t.retiro_id, tarea: t.tarea, contactoId: t.contacto_id }))
     };
 
@@ -793,11 +795,18 @@ const Store = {
     this._persist(sb.from('materiales').update({ stock_actual: stockActual }).eq('id', id), 'No se pudo guardar el stock del material');
   },
 
-  fijarCantidadFijaMaterial(id, cantidadPorUnidad) {
+  fijarPorCaminanteMaterial(id, porCaminante) {
     const m = this.db.materiales.find(x => x.id === id);
     if (!m) return;
-    m.cantidadPorUnidad = cantidadPorUnidad;
-    this._persist(sb.from('materiales').update({ cantidad_por_unidad: cantidadPorUnidad }).eq('id', id), 'No se pudo guardar la cantidad del material');
+    m.porCaminante = porCaminante;
+    this._persist(sb.from('materiales').update({ por_caminante: porCaminante }).eq('id', id), 'No se pudo guardar la cantidad del material');
+  },
+
+  fijarPorServidorMaterial(id, porServidor) {
+    const m = this.db.materiales.find(x => x.id === id);
+    if (!m) return;
+    m.porServidor = porServidor;
+    this._persist(sb.from('materiales').update({ por_servidor: porServidor }).eq('id', id), 'No se pudo guardar la cantidad del material');
   },
 
   fijarExtraMaterial(id, extraFijo) {
@@ -813,13 +822,7 @@ const Store = {
     const inscritos = this.inscripcionesDe(retiroId);
     const nCaminantes = inscritos.filter(i => i.papel === 'caminante').length;
     const nServidores = inscritos.filter(i => i.papel === 'servidor').length;
-    const extra = material.extraFijo || 0;
-    switch (material.unidadCalculo) {
-      case 'caminante': return nCaminantes * material.cantidadPorUnidad + extra;
-      case 'servidor': return nServidores * material.cantidadPorUnidad + extra;
-      case 'persona': return (nCaminantes + nServidores) * material.cantidadPorUnidad + extra;
-      default: return material.cantidadPorUnidad + extra; // 'fijo'
-    }
+    return nCaminantes * material.porCaminante + nServidores * material.porServidor + material.extraFijo;
   },
 
   // Resumen de materiales para un retiro: lo necesario, lo que ya hay en stock y lo que falta comprar.
@@ -1058,6 +1061,33 @@ const Store = {
   quitarDeCocina(retiroId, contactoId) {
     this.db.cocinaEquipo = this.db.cocinaEquipo.filter(p => !(p.retiroId === retiroId && p.contactoId === contactoId));
     this._persist(sb.from('retiro_cocina_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo quitar del equipo de Cocina');
+  },
+
+  /* ---------- Equipo de Megafonía (un responsable + ayudantes, por retiro) ---------- */
+  equipoMegafoniaDe(retiroId) {
+    const filas = this.db.megafoniaEquipo.filter(p => p.retiroId === retiroId);
+    return {
+      responsable: filas.find(p => p.rol === 'responsable')?.contactoId || null,
+      ayudantes: filas.filter(p => p.rol === 'ayudante').map(p => p.contactoId)
+    };
+  },
+  asignarResponsableMegafonia(retiroId, contactoId) {
+    this.db.megafoniaEquipo = this.db.megafoniaEquipo.filter(p => !(p.retiroId === retiroId && (p.rol === 'responsable' || p.contactoId === contactoId)));
+    this._persist(sb.from('retiro_megafonia_equipo').delete().eq('retiro_id', retiroId).eq('rol', 'responsable'), 'No se pudo asignar el responsable');
+    this._persist(sb.from('retiro_megafonia_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo asignar el responsable');
+    if (contactoId) {
+      this.db.megafoniaEquipo.push({ retiroId, contactoId, rol: 'responsable' });
+      this._persist(sb.from('retiro_megafonia_equipo').insert({ retiro_id: retiroId, contacto_id: contactoId, rol: 'responsable' }), 'No se pudo asignar el responsable');
+    }
+  },
+  agregarAyudanteMegafonia(retiroId, contactoId) {
+    if (this.db.megafoniaEquipo.some(p => p.retiroId === retiroId && p.contactoId === contactoId)) return;
+    this.db.megafoniaEquipo.push({ retiroId, contactoId, rol: 'ayudante' });
+    this._persist(sb.from('retiro_megafonia_equipo').insert({ retiro_id: retiroId, contacto_id: contactoId, rol: 'ayudante' }), 'No se pudo añadir el ayudante');
+  },
+  quitarDeMegafonia(retiroId, contactoId) {
+    this.db.megafoniaEquipo = this.db.megafoniaEquipo.filter(p => !(p.retiroId === retiroId && p.contactoId === contactoId));
+    this._persist(sb.from('retiro_megafonia_equipo').delete().eq('retiro_id', retiroId).eq('contacto_id', contactoId), 'No se pudo quitar del equipo de Megafonía');
   },
 
   /* ---------- Responsable de una tarea puntual (genérico, reutilizable para cualquier tarea futura) ---------- */
