@@ -495,7 +495,12 @@ const App = {
             <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar CSV
               <input type="file" accept=".csv,text/csv" style="display:none" onchange="App.importarContactosCSV(this)"></label>
             <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar servidores (Excel)
-              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarServidoresExcel(this)"></label>
+              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarServidoresExcel(this, App.ui.impServRetiroId)"></label>
+            <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos (solo si alguno pide polo al darse de alta)" style="max-width:180px">
+              <option value="">— sin inscribir a ningún retiro —</option>
+              ${[...Store.db.retiros].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio))
+                .map(r => `<option value="${r.id}" ${this.ui.impServRetiroId === r.id ? 'selected' : ''}>${esc(r.nombre)} (${r.fechaInicio})</option>`).join('')}
+            </select>
             <button class="btn" onclick="App.abrirContacto(null)">+ Nuevo contacto</button>
           </div>
         </div>
@@ -564,9 +569,12 @@ const App = {
 
   // Importa el Excel/CSV exportado por el típico formulario de Google para altas de servidores.
   // Los encabezados son largos y variables, así que se buscan por coincidencia parcial.
-  importarServidoresExcel(input) {
+  setImportarServidoresRetiro(id) { this.ui.impServRetiroId = id || ''; },
+
+  importarServidoresExcel(input, retiroId) {
     const file = input.files && input.files[0];
     if (!file) return;
+    const retiro = retiroId ? Store.retiro(retiroId) : null;
     const lector = new FileReader();
     lector.onload = (e) => {
       let filas;
@@ -600,7 +608,7 @@ const App = {
       const zonaId = this.ui.zonaId !== 'all' ? this.ui.zonaId : (Store.db.zonas[0]?.id || '');
       if (!zonaId) { alert('Crea antes al menos una zona en Ajustes.'); input.value = ''; return; }
 
-      let creados = 0, actualizados = 0;
+      let creados = 0, actualizados = 0, polosReservados = 0, polosPedidos = 0;
       for (const f of filas) {
         const nombre = buscar(f, 'Nombre');
         const apellidos = buscar(f, 'Apellidos');
@@ -638,10 +646,36 @@ const App = {
 
         const existente = Store.db.contactos.find(x =>
           dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
-        if (existente) { Store.guardarContacto({ id: existente.id, ...datos }); actualizados++; }
-        else { Store.guardarContacto(datos); creados++; }
+        let contactoId;
+        if (existente) { contactoId = Store.guardarContacto({ id: existente.id, ...datos }); actualizados++; }
+        else { contactoId = Store.guardarContacto(datos); creados++; }
+
+        // Si se eligió un retiro y esta fila trae talla de polo, se inscribe como servidor en ese
+        // retiro y se le pide el polo (reservado de stock o pendiente de pedir), igual que si lo
+        // hubiera pedido él mismo por el formulario público. Si no trae talla, no se le pone nada.
+        if (retiroId) {
+          const yaIns = Store.db.inscripciones.find(i => i.retiroId === retiroId && i.contactoId === contactoId);
+          const yaTienePedidoPolo = (yaIns?.detalles?.pedidoEquipacion || []).length > 0;
+          let detallesIns = null;
+          const tallaPolo = String(datos.tallaPolo || '').trim().toUpperCase();
+          if (tallaPolo && !yaTienePedidoPolo) {
+            const productoPolo = Store.db.inventario.productos.find(p => p.nombre === 'Polo blanco con Emaús');
+            if (productoPolo) {
+              const estado = Store.pedirPrenda(productoPolo.id, tallaPolo, contactoId, retiroId);
+              if (estado === 'stock') polosReservados++; else polosPedidos++;
+              detallesIns = {
+                fechaInscripcion: yaIns?.detalles?.fechaInscripcion || hoyISO(),
+                pedidoEquipacion: [{ producto: productoPolo.nombre, talla: tallaPolo, estado }]
+              };
+            }
+          }
+          Store.inscribir(retiroId, contactoId, 'servidor', detallesIns);
+        }
       }
-      alert(`Importación completada: ${creados} contactos nuevos, ${actualizados} actualizados.\n\nSe han asignado a la zona "${Store.zona(zonaId)?.nombre || ''}" — cámbiala en cada ficha si hace falta.`);
+      const msgRetiro = retiro ? ` Inscritos en «${esc(retiro.nombre)}».` : '';
+      const msgPolos = (polosReservados || polosPedidos)
+        ? `\n\nPolos pedidos: ${polosReservados} reservados de almacén, ${polosPedidos} pendientes de pedir.` : '';
+      alert(`Importación completada: ${creados} contactos nuevos, ${actualizados} actualizados.${msgRetiro}\n\nSe han asignado a la zona "${Store.zona(zonaId)?.nombre || ''}" — cámbiala en cada ficha si hace falta.${msgPolos}`);
       input.value = '';
       this.render();
     };
@@ -685,7 +719,7 @@ const App = {
         return '';
       };
 
-      let creados = 0, actualizados = 0;
+      let creados = 0, actualizados = 0, polosReservados = 0, polosPedidos = 0;
       for (const f of filas) {
         const nombre = buscar(f, 'Nombre');
         const apellidos = buscar(f, 'Apellidos');
@@ -714,7 +748,27 @@ const App = {
         if (existente) { contactoId = Store.guardarContacto({ id: existente.id, ...datosContacto }); actualizados++; }
         else { contactoId = Store.guardarContacto(datosContacto); creados++; }
 
-        const insId = Store.inscribir(retiroId, contactoId, 'caminante');
+        // El polo de caminante no se pide desde el Excel a través del formulario público, así que
+        // hay que reservarlo/pedirlo aquí igual que hace la inscripción por formulario: si trae talla
+        // y aún no tenía un pedido registrado para este retiro, se descuenta del stock o se apunta
+        // como pedido pendiente (nunca dos veces, aunque se reimporte el mismo Excel).
+        const yaIns = Store.db.inscripciones.find(i => i.retiroId === retiroId && i.contactoId === contactoId);
+        const yaTienePedidoPolo = (yaIns?.detalles?.pedidoEquipacion || []).length > 0;
+        let detallesIns = null;
+        const tallaPolo = String(datosContacto.tallaPolo || '').trim().toUpperCase();
+        if (tallaPolo && !yaTienePedidoPolo) {
+          const productoPolo = Store.db.inventario.productos.find(p => p.nombre === 'Polo blanco con la rosa');
+          if (productoPolo) {
+            const estado = Store.pedirPrenda(productoPolo.id, tallaPolo, contactoId, retiroId);
+            if (estado === 'stock') polosReservados++; else polosPedidos++;
+            detallesIns = {
+              fechaInscripcion: yaIns?.detalles?.fechaInscripcion || hoyISO(),
+              pedidoEquipacion: [{ producto: productoPolo.nombre, talla: tallaPolo, estado }]
+            };
+          }
+        }
+
+        const insId = Store.inscribir(retiroId, contactoId, 'caminante', detallesIns);
         Store.actualizarInscripcion(insId, {
           palancasContacto1Nombre: buscar(f, 'persona de contacto 1'),
           palancasContacto1Telefono: String(buscar(f, 'Teléfono (1)') || '').trim(),
@@ -736,7 +790,9 @@ const App = {
           familiaresDomingo: buscar(f, 'a la misa del domingo')
         });
       }
-      alert(`Importación completada: ${creados} caminantes nuevos, ${actualizados} actualizados, todos inscritos en «${retiro?.nombre || ''}».`);
+      const msgPolos = (polosReservados || polosPedidos)
+        ? `\n\nPolos: ${polosReservados} reservados de almacén, ${polosPedidos} pendientes de pedir.` : '';
+      alert(`Importación completada: ${creados} caminantes nuevos, ${actualizados} actualizados, todos inscritos en «${retiro?.nombre || ''}».${msgPolos}`);
       input.value = '';
       this.render();
     };
