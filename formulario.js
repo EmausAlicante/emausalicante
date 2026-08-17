@@ -126,6 +126,15 @@ function renderCaminantes(retiro, zona) {
         <div class="campo"><label>Teléfono del mismo</label><input id="fp-invito-tel" style="width:100%"></div>
       </div>
       <div class="campo"><label class="check-linea"><input type="checkbox" id="fp-transporte"> ¿Necesitas transporte para ir al lugar del retiro?</label></div>
+      <h4>Tu polo</h4>
+      <div class="grid2">
+        <div class="campo"><label>Talla de polo</label>
+          <select id="fp-talla-polo" style="width:100%">
+            <option value="">— elige tu talla —</option>
+            ${TALLAS.map(t => `<option>${t}</option>`).join('')}
+          </select>
+        </div>
+      </div>
       <h4>Personas de contacto</h4>
       <p class="nota">Nos sirven para el equipo de Palancas, que acompaña a los caminantes durante el retiro.</p>
       <div class="grid2">
@@ -157,15 +166,20 @@ function renderCaminantes(retiro, zona) {
       p_contacto1_nombre: v('fp-c1-nombre'), p_contacto1_telefono: normalizarTelefono(v('fp-c1-tel')), p_contacto1_relacion: v('fp-c1-rel'),
       p_contacto2_nombre: v('fp-c2-nombre'), p_contacto2_telefono: normalizarTelefono(v('fp-c2-tel')), p_contacto2_relacion: v('fp-c2-rel'),
       p_quien_invito: v('fp-invito'), p_telefono_invito: normalizarTelefono(v('fp-invito-tel')),
-      p_necesita_transporte: document.getElementById('fp-transporte').checked
+      p_necesita_transporte: document.getElementById('fp-transporte').checked,
+      p_talla_polo: v('fp-talla-polo') || null
     });
     if (error) {
       errorEl.textContent = error.message;
       boton.disabled = false; boton.textContent = 'Enviar inscripción';
       return;
     }
+    const items = data.pedido_equipacion || [];
+    const msgPolo = items.length
+      ? (items[0].estado === 'stock' ? ' Tu polo queda reservado del almacén.' : ' Tu polo queda anotado como pedido pendiente.')
+      : '';
     pantalla(`<div class="tarjeta" style="border-left:5px solid var(--verde)">
-      <strong>✔ Inscripción registrada.</strong> ${esc(data.nombre)} ${esc(data.apellidos)} queda apuntado como caminante en «${esc(retiro.nombre)}».
+      <strong>✔ Inscripción registrada.</strong> ${esc(data.nombre)} ${esc(data.apellidos)} queda apuntado como caminante en «${esc(retiro.nombre)}».${msgPolo}
     </div>`);
   };
 }

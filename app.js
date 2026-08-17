@@ -1057,6 +1057,7 @@ const App = {
         <div class="campo"><label>Fecha fin</label><input id="r-fin" type="date" value="${esc(r.fechaFin)}" style="width:100%"></div>
         <div class="campo"><label>Precio (€)</label><input id="r-precio" type="number" min="0" value="${esc(r.precio)}" style="width:100%"></div>
         <div class="campo"><label>Suplemento hab. individual (€)</label><input id="r-supl" type="number" min="0" value="${esc(r.suplementoIndividual)}" style="width:100%"></div>
+        <div class="campo"><label>Precio angelito (€) <small>(no se alojan, pagan menos)</small></label><input id="r-precio-angelito" type="number" min="0" value="${esc(r.precioAngelito)}" style="width:100%"></div>
       </div>
       <div class="campo"><label>Información para el formulario (pago, equipación, horarios, contactos…)</label>
         <textarea id="r-info" rows="5">${esc(r.infoExtra)}</textarea></div>
@@ -1078,6 +1079,7 @@ const App = {
       lugar: v('r-lugar'), fechaInicio: v('r-inicio'), fechaFin: v('r-fin') || v('r-inicio'),
       precio: v('r-precio') ? Number(v('r-precio')) : null,
       suplementoIndividual: v('r-supl') ? Number(v('r-supl')) : null,
+      precioAngelito: v('r-precio-angelito') ? Number(v('r-precio-angelito')) : null,
       infoExtra: document.getElementById('r-info').value.trim()
     });
     document.getElementById('contactoDialog').close();
@@ -1128,6 +1130,7 @@ const App = {
           <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">${opcionesFormasPago(i.metodoPago)}</select>
           <input type="number" min="0" step="0.01" value="${i.importePagado || 0}" title="Importe pagado (€)" style="width:80px;margin-top:4px" onchange="App.insCampo('${i.id}', 'importePagado', parseFloat(this.value)||0, true)">
           ${i.papel === 'caminante' ? `<label class="check-linea" style="margin:4px 0 0"><input type="checkbox" ${i.llegado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'llegado', this.checked, true)"> Ha llegado</label>` : ''}
+          ${i.papel === 'servidor' ? `<label class="check-linea" style="margin:4px 0 0"><input type="checkbox" ${i.esAngelito ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'esAngelito', this.checked, true)"> 👼 Angelito (no duerme, paga menos)</label>` : ''}
           <label class="check-linea" style="margin:4px 0 0"><input type="checkbox" ${i.fotoHecha ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'fotoHecha', this.checked, true)"> 📷 Foto hecha</label>
         </td>
         <td><input value="${esc(i.notas)}" placeholder="Notas…" onchange="App.insCampo('${i.id}', 'notas', this.value)" style="width:140px"></td>
@@ -2583,11 +2586,12 @@ const App = {
       const inscripciones = Store.db.inscripciones.filter(i => i.retiroId === r.id);
       if (!inscripciones.length) return '';
       const pagados = inscripciones.filter(i => i.pagado).length;
+      const nAngelitos = inscripciones.filter(i => i.esAngelito).length;
       const filas = inscripciones.map(i => {
         const c = Store.contacto(i.contactoId);
         if (!c) return '';
         return `<tr>
-          <td><strong>${esc(c.nombre)} ${esc(c.apellidos)}</strong></td>
+          <td><strong>${esc(c.nombre)} ${esc(c.apellidos)}</strong>${i.esAngelito ? ' <span class="badge" style="font-size:.65rem">👼 angelito</span>' : ''}</td>
           <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
           <td style="white-space:nowrap">
             <label class="check-linea" style="margin:0 0 4px"><input type="checkbox" ${i.pagado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'pagado', this.checked, true)"> Pagado</label>
@@ -2597,8 +2601,12 @@ const App = {
           <td><input value="${esc(i.notas)}" placeholder="Notas…" onchange="App.insCampo('${i.id}', 'notas', this.value)" style="width:160px"></td>
         </tr>`;
       }).join('');
+      const notaAngelitos = nAngelitos
+        ? `<p class="nota">👼 ${nAngelitos} angelito${nAngelitos === 1 ? '' : 's'} entre los inscritos${r.precioAngelito != null ? ` — su precio de referencia es ${r.precioAngelito} € (en vez de los ${r.precio ?? '—'} € normales)` : ' — no has puesto un precio de angelito en la ficha del retiro'}.</p>`
+        : '';
       return `<details style="margin-bottom:10px">
         <summary style="cursor:pointer;font-weight:600">${esc(r.nombre)} — ${pagados}/${inscripciones.length} pagados</summary>
+        ${notaAngelitos}
         <table class="tabla" style="margin-top:10px"><thead><tr><th>Nombre</th><th>Papel</th><th>Pago</th><th>Notas</th></tr></thead>
         <tbody>${filas}</tbody></table>
       </details>`;
@@ -2722,16 +2730,18 @@ const App = {
     }
 
     const nCaminantes = Store.inscripcionesDe(r.id).filter(i => i.papel === 'caminante').length;
-    const nServidores = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor').length;
+    const inscritosServidorTodos = Store.inscripcionesDe(r.id).filter(i => i.papel === 'servidor');
+    const nServidores = inscritosServidorTodos.length;
+    const nAngelitos = inscritosServidorTodos.filter(i => i.esAngelito).length;
     const resumen = Store.resumenMaterialesRetiro(r.id);
-    const nombresCategoria = { caminante: '🚶 Para los caminantes', servidor: '🙌 Para los servidores', retiro: '🏕️ Para el retiro (general)', cafeteria: '☕ Cafetería / snacks' };
+    const nombresCategoria = { caminante: '🚶 Para los caminantes', servidor: '🙌 Para los servidores', retiro: '🏕️ Para el retiro (general)' };
 
     const filaMaterial = ({ material: m, necesario, aComprar }) => `
       <tr>
         <td><strong>${esc(m.nombre)}</strong></td>
         <td class="nota" style="white-space:nowrap">
           <input type="number" min="0" style="width:48px" title="Por cada caminante" value="${m.porCaminante}" onchange="App.fijarPorCaminanteMaterial('${m.id}', this.value)">/camin.
-          <input type="number" min="0" style="width:48px" title="Por cada servidor" value="${m.porServidor}" onchange="App.fijarPorServidorMaterial('${m.id}', this.value)">/serv.
+          <input type="number" min="0" style="width:48px" title="Por cada servidor (incluye angelitos)" value="${m.porServidor}" onchange="App.fijarPorServidorMaterial('${m.id}', this.value)">/serv.
           + <input type="number" min="0" style="width:48px" title="Cantidad fija extra" value="${m.extraFijo}" onchange="App.fijarExtraMaterial('${m.id}', this.value)">
         </td>
         <td>${necesario}</td>
@@ -2739,7 +2749,7 @@ const App = {
         <td>${aComprar > 0 ? `<strong style="color:var(--ambar, #a86a14)">${aComprar}</strong>` : '✔'}</td>
       </tr>`;
 
-    const bloquesCategoria = ['caminante', 'servidor', 'retiro', 'cafeteria'].map(cat => {
+    const bloquesCategoria = ['caminante', 'servidor', 'retiro'].map(cat => {
       const items = resumen.filter(x => x.material.categoria === cat);
       if (!items.length) return '';
       return `
@@ -2747,6 +2757,15 @@ const App = {
         <div class="tabla-scroll"><table><thead><tr><th>Material</th><th>Cálculo</th><th>Necesario</th><th>En stock</th><th>A comprar</th></tr></thead>
         <tbody>${items.map(filaMaterial).join('')}</tbody></table></div>`;
     }).join('');
+
+    const itemsCafeteria = resumen.filter(x => x.material.categoria === 'cafeteria');
+    const bloqueCafeteria = itemsCafeteria.length ? `
+      <div class="tarjeta">
+        <h3>☕ Cafetería / catering</h3>
+        <p class="nota">Bebidas, aperitivos y menaje para la cafetería — aparte del resto de bolsas y materiales.</p>
+        <div class="tabla-scroll"><table><thead><tr><th>Material</th><th>Cálculo</th><th>Necesario</th><th>En stock</th><th>A comprar</th></tr></thead>
+        <tbody>${itemsCafeteria.map(filaMaterial).join('')}</tbody></table></div>
+      </div>` : '';
 
     return `
       <div class="tarjeta">
@@ -2758,9 +2777,10 @@ const App = {
           </div>
         </div>
         <div class="campo"><label>Retiro</label><select onchange="App.setMatRetiro(this.value)">${opciones}</select></div>
-        <p class="nota">${nCaminantes} caminantes · ${nServidores} servidores inscritos en «${esc(r.nombre)}». Cada caminante lleva 3 sobres grandes (cartas, regalo y foto) con su polo (talla pedida al inscribirse, se gestiona en Stock inicial más arriba), agua bendita, biblia y el regalo (rosario). Cada servidor lleva su cruz. Los sobres grandes ya suman ambos grupos en una sola fila. La foto de recuerdo se marca por persona en Inscripciones.</p>
+        <p class="nota">${nCaminantes} caminantes · ${nServidores} servidores (${nAngelitos} de ellos angelitos) en «${esc(r.nombre)}». Los angelitos son servidores que no duermen en el retiro — se marcan con el checkbox "👼 Angelito" en su fila de Inscripciones — y ya cuentan dentro del total de servidores para materiales. Cada caminante lleva 3 sobres grandes (cartas, regalo y foto) con su polo (talla pedida al inscribirse, se gestiona en Stock inicial más arriba), agua bendita, biblia y el regalo (rosario). Cada servidor lleva su cruz. Los sobres grandes ya suman ambos grupos en una sola fila. La foto de recuerdo se marca por persona en Inscripciones.</p>
         ${bloquesCategoria}
-      </div>`;
+      </div>
+      ${bloqueCafeteria}`;
   },
 
   fijarStockMaterial(id, valor) {
