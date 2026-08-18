@@ -487,6 +487,17 @@ const App = {
     this.render();
   },
 
+  // Mover una columna arriba (-1) o abajo (+1) en el orden, se vea o no ahora mismo
+  colMover(id, direccion) {
+    const p = this.cargarPrefsContactos();
+    const i = p.orden.indexOf(id);
+    const j = i + direccion;
+    if (i < 0 || j < 0 || j >= p.orden.length) return;
+    [p.orden[i], p.orden[j]] = [p.orden[j], p.orden[i]];
+    this.guardarPrefsContactos();
+    this.render();
+  },
+
   vContactos() {
     const p = this.cargarPrefsContactos();
     const cols = this.colsContactos();
@@ -530,12 +541,16 @@ const App = {
 
     const panelColumnas = this.ui.colPanel ? `
       <div style="background:var(--tarjeta-alta);border:1px solid var(--borde);border-radius:8px;padding:10px 14px;margin-bottom:12px">
-        <strong style="font-size:.85rem">Columnas visibles</strong>
-        <span class="nota"> — arrastra una cabecera de la tabla para cambiar el orden de las columnas.</span>
-        <div style="display:flex;flex-wrap:wrap;gap:2px 22px;margin-top:6px">
-          ${p.orden.map(id => `
-            <label class="check-linea" style="margin:3px 0"><input type="checkbox" ${p.visibles.includes(id) ? 'checked' : ''}
-              onchange="App.colVisible('${id}', this.checked)"> ${porId[id].titulo}</label>`).join('')}
+        <strong style="font-size:.85rem">Columnas</strong>
+        <span class="nota"> — marca cuáles se ven y usa ▲▼ para cambiar su orden (también el de las que tienes ocultas).</span>
+        <div style="margin-top:8px;max-width:420px">
+          ${p.orden.map((id, i) => `
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i ? 'border-top:1px solid var(--borde)' : ''}">
+              <label class="check-linea" style="margin:0;flex:1"><input type="checkbox" ${p.visibles.includes(id) ? 'checked' : ''}
+                onchange="App.colVisible('${id}', this.checked)"> ${porId[id].titulo}</label>
+              <button class="btn-icono" style="width:28px;height:28px;font-size:.85rem" title="Subir" ${i === 0 ? 'disabled' : ''} onclick="App.colMover('${id}', -1)">▲</button>
+              <button class="btn-icono" style="width:28px;height:28px;font-size:.85rem" title="Bajar" ${i === p.orden.length - 1 ? 'disabled' : ''} onclick="App.colMover('${id}', 1)">▼</button>
+            </div>`).join('')}
         </div>
       </div>` : '';
 
@@ -546,11 +561,11 @@ const App = {
                  value="${esc(this.ui.buscar)}" oninput="App.setBuscar(this.value)">
           <div class="acciones-linea" style="margin:0">
             ${nSel ? `<button class="btn peligro" onclick="App.eliminarSeleccionados()">🗑 Eliminar (${nSel})</button>` : ''}
-            <button class="btn-icono" title="Elegir columnas visibles" aria-label="Columnas" onclick="App.toggleColPanel()">⚙️</button>
-            <button class="btn-icono" title="Exportar a CSV" aria-label="Exportar CSV" onclick="App.exportarContactosCSV()">⬇️</button>
-            <label class="btn-icono" title="Importar contactos desde CSV" aria-label="Importar CSV">📄
+            <button class="btn-icono" title="Elegir y ordenar columnas" aria-label="Columnas" onclick="App.toggleColPanel()">🗂️</button>
+            <button class="btn-icono" title="Exportar contactos a CSV" aria-label="Exportar CSV" onclick="App.exportarContactosCSV()">📤</button>
+            <label class="btn-icono" title="Importar contactos desde un CSV" aria-label="Importar CSV">📥
               <input type="file" accept=".csv,text/csv" style="display:none" onchange="App.importarContactosCSV(this)"></label>
-            <label class="btn-icono" title="Importar servidores desde Excel" aria-label="Importar servidores (Excel)">📥
+            <label class="btn-icono" title="Importar servidores desde un Excel" aria-label="Importar servidores (Excel)">📊
               <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarServidoresExcel(this, App.ui.impServRetiroId)"></label>
             <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos al importar servidores (solo si alguno pide polo al darse de alta)" style="max-width:170px">
               <option value="">— sin inscribir a ningún retiro —</option>
@@ -560,7 +575,7 @@ const App = {
             <button class="btn" onclick="App.abrirContacto(null)">+ Nuevo contacto</button>
           </div>
         </div>
-        <p class="nota" style="margin-top:8px">⚙️ Columnas · ⬇️ Exportar CSV · 📄 Importar CSV · 📥 Importar servidores desde Excel</p>
+        <p class="nota" style="margin-top:8px">🗂️ Columnas · 📤 Exportar CSV · 📥 Importar CSV · 📊 Importar servidores desde Excel</p>
         ${panelColumnas}
         ${lista.length ? `<div class="tabla-scroll"><table><thead><tr>${cabeceras}</tr></thead><tbody>${filas}</tbody></table></div>` : '<div class="vacio">No hay contactos.</div>'}
         <p class="nota" style="margin-top:10px">Clic en una cabecera para ordenar (segundo clic invierte el orden) · arrastra el icono ⠿ para mover la columna. La etiqueta cambia sola: con fecha de retiro vivido es <strong>Servidor</strong>; sin ella, <strong>Caminante</strong>.</p>

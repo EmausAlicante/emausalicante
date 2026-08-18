@@ -129,6 +129,7 @@ label { font-size: .82rem; color: var(--texto-suave); display: block; margin-bot
   transition: background .12s ease, border-color .12s ease;
 }
 .btn-icono:hover { background: var(--borde); border-color: #33415e; }
+.btn-icono:disabled { opacity: .35; cursor: default; background: var(--tarjeta-alta); border-color: var(--borde); }
 
 /* ---------- Tarjetas ---------- */
 .tarjeta {
