@@ -95,42 +95,6 @@ const App = {
     this.render();
   },
 
-  // Tema claro/oscuro: se guarda en localStorage para recordarlo entre sesiones
-  alternarTema() {
-    const claro = document.body.classList.toggle('claro');
-    localStorage.setItem('emaus-tema', claro ? 'claro' : 'oscuro');
-    this.render();
-  },
-  aplicarTemaGuardado() {
-    if (localStorage.getItem('emaus-tema') === 'claro') document.body.classList.add('claro');
-  },
-
-  // Colores de acento personalizables desde Ajustes → Apariencia (se guardan por dispositivo/navegador)
-  guardarColores() {
-    const azul = document.getElementById('aj-color-azul').value;
-    const ambar = document.getElementById('aj-color-ambar').value;
-    document.documentElement.style.setProperty('--azul', azul);
-    document.documentElement.style.setProperty('--azul-oscuro', azul);
-    document.documentElement.style.setProperty('--ambar', ambar);
-    localStorage.setItem('emaus-colores', JSON.stringify({ azul, ambar }));
-  },
-  restablecerColores() {
-    document.documentElement.style.removeProperty('--azul');
-    document.documentElement.style.removeProperty('--azul-oscuro');
-    document.documentElement.style.removeProperty('--ambar');
-    localStorage.removeItem('emaus-colores');
-    this.render();
-  },
-  aplicarColoresGuardados() {
-    const guardado = localStorage.getItem('emaus-colores');
-    if (!guardado) return;
-    try {
-      const { azul, ambar } = JSON.parse(guardado);
-      if (azul) { document.documentElement.style.setProperty('--azul', azul); document.documentElement.style.setProperty('--azul-oscuro', azul); }
-      if (ambar) document.documentElement.style.setProperty('--ambar', ambar);
-    } catch (e) { /* preferencia corrupta: se ignora */ }
-  },
-
   setZona(id) {
     if (id === '__nueva__') {
       const z = this.pedirNuevaZona();
@@ -217,31 +181,16 @@ const App = {
     else if (this.ui.vista === 'formulario') contenido = this.vFormulario();
     else if (this.ui.vista === 'ajustes') contenido = this.vAjustes();
 
-    // Barra inferior móvil: hasta 4 vistas principales + "Más" (abre el menú completo)
-    const vistasBarra = vistas.slice(0, 4);
-    const bottomNav = `
-      <nav class="bottom-nav">
-        ${vistasBarra.map(([id, nombre]) => {
-          const [icono, ...resto] = nombre.split(' ');
-          const texto = resto.join(' ');
-          return `<button class="${this.ui.vista === id ? 'activo' : ''}" onclick="App.ir('${id}')">
-            <span class="icono">${icono}</span><span>${esc(texto)}</span>
-          </button>`;
-        }).join('')}
-        <button onclick="App.toggleMenu(true)"><span class="icono">☰</span><span>Más</span></button>
-      </nav>`;
-
     document.getElementById('app').innerHTML = `
       <button class="menu-toggle" onclick="App.toggleMenu()" aria-label="Abrir menú">☰</button>
       <div class="fondo-menu ${this.ui.menuAbierto ? 'visible' : ''}" onclick="App.toggleMenu(false)"></div>
-      ${bottomNav}
       <aside class="sidebar ${this.ui.menuAbierto ? 'abierto' : ''}">
         <div class="logo">
           ${logo ? `<img src="${logo}" alt="Logotipo">` : ''}
           <h1>Emaús</h1><span>${esc(subtitulo)}</span>
         </div>
         <nav>${nav}</nav>
-        <div class="pie">Andrés Catalá<br>M. 610 200 951</div>
+        <div class="pie">v1 · datos de ejemplo<br>${esc(Store.db.organizacion.nombre)}</div>
       </aside>
       <div class="main">
         <div class="cabecera">
@@ -249,18 +198,13 @@ const App = {
             <h2 id="titulo-vista"></h2>
             <div class="org">${esc(Store.db.organizacion.nombre)}</div>
           </div>
-          <div style="display:flex; align-items:flex-end; gap:10px">
-            <div>
-              <label>Zona</label>
-              <select onchange="App.setZona(this.value)">
-                <option value="all" ${this.ui.zonaId === 'all' ? 'selected' : ''}>Todas las zonas</option>
-                ${zonas}
-                <option value="__nueva__">➕ Nueva zona…</option>
-              </select>
-            </div>
-            <button class="boton-tema" onclick="App.alternarTema()" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro/oscuro">
-              ${document.body.classList.contains('claro') ? '🌙' : '☀️'}
-            </button>
+          <div>
+            <label>Zona</label>
+            <select onchange="App.setZona(this.value)">
+              <option value="all" ${this.ui.zonaId === 'all' ? 'selected' : ''}>Todas las zonas</option>
+              ${zonas}
+              <option value="__nueva__">➕ Nueva zona…</option>
+            </select>
           </div>
         </div>
         ${contenido}
@@ -487,17 +431,6 @@ const App = {
     this.render();
   },
 
-  // Mover una columna arriba (-1) o abajo (+1) en el orden, se vea o no ahora mismo
-  colMover(id, direccion) {
-    const p = this.cargarPrefsContactos();
-    const i = p.orden.indexOf(id);
-    const j = i + direccion;
-    if (i < 0 || j < 0 || j >= p.orden.length) return;
-    [p.orden[i], p.orden[j]] = [p.orden[j], p.orden[i]];
-    this.guardarPrefsContactos();
-    this.render();
-  },
-
   vContactos() {
     const p = this.cargarPrefsContactos();
     const cols = this.colsContactos();
@@ -524,13 +457,13 @@ const App = {
     const cabeceras = `
       <th style="width:34px"><input type="checkbox" ${todosSel ? 'checked' : ''} title="Seleccionar todos"
         onclick="event.stopPropagation()" onchange="App.selTodos(this.checked)"></th>` + visibles.map(col => `
-      <th class="ordenable" title="Clic: ordenar · Icono ⠿: arrastrar para mover la columna" onclick="App.colSort('${col.id}')">
-        <span class="asa" draggable="true" title="Arrastrar para mover"
-          onclick="event.stopPropagation()"
+      <th draggable="true" title="Clic: ordenar · Arrastrar: mover columna"
           ondragstart="App.colDragStart(event, '${col.id}')"
           ondragover="event.preventDefault()"
-          ondrop="App.colDrop(event, '${col.id}')">⠿</span>${col.titulo}
-        <span class="flecha ${p.sortCol === col.id ? '' : 'inactiva'}">${p.sortCol === col.id ? (p.sortDir === 1 ? '▲' : '▼') : '⇅'}</span>
+          ondrop="App.colDrop(event, '${col.id}')"
+          onclick="App.colSort('${col.id}')"
+          style="cursor:pointer;user-select:none;white-space:nowrap">
+        ${col.titulo}${p.sortCol === col.id ? (p.sortDir === 1 ? ' ▲' : ' ▼') : ''}
       </th>`).join('');
 
     const filas = lista.map(c =>
@@ -540,17 +473,13 @@ const App = {
     ).join('');
 
     const panelColumnas = this.ui.colPanel ? `
-      <div style="background:var(--tarjeta-alta);border:1px solid var(--borde);border-radius:8px;padding:10px 14px;margin-bottom:12px">
-        <strong style="font-size:.85rem">Columnas</strong>
-        <span class="nota"> — marca cuáles se ven y usa ▲▼ para cambiar su orden (también el de las que tienes ocultas).</span>
-        <div style="margin-top:8px;max-width:420px">
-          ${p.orden.map((id, i) => `
-            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i ? 'border-top:1px solid var(--borde)' : ''}">
-              <label class="check-linea" style="margin:0;flex:1"><input type="checkbox" ${p.visibles.includes(id) ? 'checked' : ''}
-                onchange="App.colVisible('${id}', this.checked)"> ${porId[id].titulo}</label>
-              <button class="btn-icono" style="width:28px;height:28px;font-size:.85rem" title="Subir" ${i === 0 ? 'disabled' : ''} onclick="App.colMover('${id}', -1)">▲</button>
-              <button class="btn-icono" style="width:28px;height:28px;font-size:.85rem" title="Bajar" ${i === p.orden.length - 1 ? 'disabled' : ''} onclick="App.colMover('${id}', 1)">▼</button>
-            </div>`).join('')}
+      <div style="background:#f8f9fb;border:1px solid var(--borde);border-radius:8px;padding:10px 14px;margin-bottom:12px">
+        <strong style="font-size:.85rem">Columnas visibles</strong>
+        <span class="nota"> — arrastra una cabecera de la tabla para cambiar el orden de las columnas.</span>
+        <div style="display:flex;flex-wrap:wrap;gap:2px 22px;margin-top:6px">
+          ${p.orden.map(id => `
+            <label class="check-linea" style="margin:3px 0"><input type="checkbox" ${p.visibles.includes(id) ? 'checked' : ''}
+              onchange="App.colVisible('${id}', this.checked)"> ${porId[id].titulo}</label>`).join('')}
         </div>
       </div>` : '';
 
@@ -561,24 +490,30 @@ const App = {
                  value="${esc(this.ui.buscar)}" oninput="App.setBuscar(this.value)">
           <div class="acciones-linea" style="margin:0">
             ${nSel ? `<button class="btn peligro" onclick="App.eliminarSeleccionados()">🗑 Eliminar (${nSel})</button>` : ''}
-            <button class="btn-icono" title="Elegir y ordenar columnas" aria-label="Columnas" onclick="App.toggleColPanel()">🗂️</button>
-            <button class="btn-icono" title="Exportar contactos a CSV" aria-label="Exportar CSV" onclick="App.exportarContactosCSV()">📤</button>
-            <label class="btn-icono" title="Importar contactos desde un CSV" aria-label="Importar CSV">📥
+            <button class="btn secundario" onclick="App.toggleColPanel()">⚙ Columnas</button>
+            <button class="btn secundario" onclick="App.exportarContactosCSV()">⬇ Exportar CSV</button>
+            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar CSV
               <input type="file" accept=".csv,text/csv" style="display:none" onchange="App.importarContactosCSV(this)"></label>
-            <label class="btn-icono" title="Importar servidores desde un Excel" aria-label="Importar servidores (Excel)">📊
+            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar servidores (Excel)
               <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarServidoresExcel(this, App.ui.impServRetiroId)"></label>
-            <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos al importar servidores (solo si alguno pide polo al darse de alta)" style="max-width:170px">
+            <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos (solo si alguno pide polo al darse de alta)" style="max-width:180px">
               <option value="">— sin inscribir a ningún retiro —</option>
               ${[...Store.db.retiros].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio))
                 .map(r => `<option value="${r.id}" ${this.ui.impServRetiroId === r.id ? 'selected' : ''}>${esc(r.nombre)} (${r.fechaInicio})</option>`).join('')}
             </select>
+            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar caminantes (Excel)
+              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarCaminantesExcel(this, App.ui.impCamRetiroId)"></label>
+            <select onchange="App.setImportarCaminantesRetiro(this.value)" title="Retiro en el que inscribirlos (obligatorio)" style="max-width:180px">
+              <option value="">— elige el retiro —</option>
+              ${[...Store.db.retiros].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio))
+                .map(r => `<option value="${r.id}" ${this.ui.impCamRetiroId === r.id ? 'selected' : ''}>${esc(r.nombre)} (${r.fechaInicio})</option>`).join('')}
+            </select>
             <button class="btn" onclick="App.abrirContacto(null)">+ Nuevo contacto</button>
           </div>
         </div>
-        <p class="nota" style="margin-top:8px">🗂️ Columnas · 📤 Exportar CSV · 📥 Importar CSV · 📊 Importar servidores desde Excel</p>
         ${panelColumnas}
         ${lista.length ? `<div class="tabla-scroll"><table><thead><tr>${cabeceras}</tr></thead><tbody>${filas}</tbody></table></div>` : '<div class="vacio">No hay contactos.</div>'}
-        <p class="nota" style="margin-top:10px">Clic en una cabecera para ordenar (segundo clic invierte el orden) · arrastra el icono ⠿ para mover la columna. La etiqueta cambia sola: con fecha de retiro vivido es <strong>Servidor</strong>; sin ella, <strong>Caminante</strong>.</p>
+        <p class="nota" style="margin-top:10px">Clic en una cabecera para ordenar (segundo clic invierte el orden) y arrástrala para mover la columna. La etiqueta cambia sola: con fecha de retiro vivido es <strong>Servidor</strong>; sin ella, <strong>Caminante</strong>.</p>
       </div>`;
   },
 
@@ -642,6 +577,7 @@ const App = {
   // Importa el Excel/CSV exportado por el típico formulario de Google para altas de servidores.
   // Los encabezados son largos y variables, así que se buscan por coincidencia parcial.
   setImportarServidoresRetiro(id) { this.ui.impServRetiroId = id || ''; },
+  setImportarCaminantesRetiro(id) { this.ui.impCamRetiroId = id || ''; },
 
   importarServidoresExcel(input, retiroId) {
     const file = input.files && input.files[0];
@@ -761,6 +697,7 @@ const App = {
   importarCaminantesExcel(input, retiroId) {
     const file = input.files && input.files[0];
     if (!file) return;
+    if (!retiroId) { alert('Elige antes el retiro en el que inscribirlos.'); input.value = ''; return; }
     const retiro = Store.retiro(retiroId);
     const lector = new FileReader();
     lector.onload = (e) => {
@@ -1188,7 +1125,7 @@ const App = {
       const veterano = i.papel === 'servidor' ? (nAntes > 0 || Store.haServidoAntes(c.id, r.fechaInicio)) : false;
       return `<tr>
         <td><strong>${esc(c.nombre)} ${esc(c.apellidos)}</strong></td>
-        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span>
+        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span>
             ${i.papel === 'servidor' ? (veterano ? `<span class="badge veterano">Ya ha servido${nAntes > 0 ? ' ×' + nAntes : ''}</span>` : '<span class="badge caminante">1ª vez sirviendo</span>') : ''}</td>
         <td>${esc(c.telefono || '—')}</td>
         <td>
@@ -1423,7 +1360,7 @@ const App = {
       if (!c) return '';
       return `<tr>
         <td>${esc(c.nombre)} ${esc(c.apellidos)}</td>
-        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span></td>
+        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
         <td><label class="check-linea" style="margin:0"><input type="checkbox" ${i.etiquetaImpresa ? 'checked' : ''} onchange="App.insCampo('${i.id}','etiquetaImpresa',this.checked,true)"> Impresa</label></td>
       </tr>`;
     }).join('');
@@ -1463,7 +1400,7 @@ const App = {
       return `<div class="etiqueta">
         <div class="etiqueta-nombre">${esc(c.nombre)}</div>
         <div class="etiqueta-apellidos">${esc(c.apellidos)}</div>
-        <div class="etiqueta-papel">${i.papel === 'servidor' ? 'SERVIDOR' : 'CAMINANTE'}</div>
+        <div class="etiqueta-papel">${i.papel === 'servidor' ? 'SIRVE' : 'CAMINANTE'}</div>
         <div class="etiqueta-retiro">${esc(r?.nombre || '')}</div>
       </div>`;
     }).join('');
@@ -1601,7 +1538,7 @@ const App = {
 
     const filasHtml = filas.map(f => `<tr>
         <td>${esc(f.nombre)} ${esc(f.apellidos)}</td>
-        <td><span class="badge ${f.papel}">${f.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span></td>
+        <td><span class="badge ${f.papel}">${f.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
         <td>⚠️ ${esc(f.alergias)}</td>
       </tr>`).join('');
 
@@ -1863,7 +1800,7 @@ const App = {
       const asignados = inscripcionesCaminantes.filter(i => i.palancasAsignadoA === mId);
       const contactados = asignados.filter(i => i.palancasContactado).length;
       return `
-        <div class="tarjeta" style="margin-bottom:10px;background:var(--tarjeta-alta)">
+        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
           <div class="acciones-linea" style="justify-content:space-between">
             <strong>${esc(miembro.nombre)} ${esc(miembro.apellidos)}</strong>
             <span class="nota">${contactados}/${asignados.length} contactados</span>
@@ -2025,7 +1962,7 @@ const App = {
       const lider = m.liderContactoId ? Store.contacto(m.liderContactoId) : null;
       const colider = m.coliderContactoId ? Store.contacto(m.coliderContactoId) : null;
       return `
-        <div class="tarjeta" style="margin-bottom:10px;background:var(--tarjeta-alta)">
+        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
           <div class="acciones-linea" style="justify-content:space-between">
             <strong>${esc(m.nombre) || 'Sin nombre'}</strong>
             <button class="btn mini peligro" onclick="App.borrarMesa('${r.id}','${m.id}')">Eliminar mesa</button>
@@ -2155,7 +2092,7 @@ const App = {
       const disponibles = inscritos.filter(c => !asignadoId(c) || asignadoId(c) === h.id).filter(c => asignadoId(c) !== h.id);
       const solo = ocupantes.length === 1 && h.capacidad >= 1;
       return `
-        <div class="tarjeta" style="margin-bottom:10px;background:var(--tarjeta-alta)">
+        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
           <div class="acciones-linea" style="justify-content:space-between">
             <strong>${esc(h.nombre) || 'Sin nombre'} · ${ocupantes.length}/${h.capacidad}</strong>
             <button class="btn mini peligro" onclick="App.borrarHabitacion('${r.id}','${h.id}')">Eliminar habitación</button>
@@ -2690,7 +2627,7 @@ const App = {
         if (!c) return '';
         return `<tr>
           <td><strong>${esc(c.nombre)} ${esc(c.apellidos)}</strong>${i.esAngelito ? ' <span class="badge" style="font-size:.65rem">👼 angelito</span>' : ''}</td>
-          <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span></td>
+          <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
           <td style="white-space:nowrap">
             <label class="check-linea" style="margin:0 0 4px"><input type="checkbox" ${i.pagado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'pagado', this.checked, true)"> Pagado</label>
             <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">${opcionesFormasPago(i.metodoPago)}</select>
@@ -3028,22 +2965,6 @@ const App = {
 
     return `
       <div class="tarjeta">
-        <h3>Apariencia</h3>
-        <p class="nota">Cambia los colores de acento de toda la aplicación. Se guardan en este dispositivo/navegador.</p>
-        <div class="acciones-linea" style="align-items:center;margin-top:10px">
-          <div>
-            <label>Color principal (botones, menú activo)</label>
-            <input type="color" id="aj-color-azul" value="${getComputedStyle(document.documentElement).getPropertyValue('--azul').trim() || '#3b82f6'}" onchange="App.guardarColores()" style="width:52px;height:38px;padding:2px;cursor:pointer">
-          </div>
-          <div>
-            <label>Color de marca (líder, destacados)</label>
-            <input type="color" id="aj-color-ambar" value="${getComputedStyle(document.documentElement).getPropertyValue('--ambar').trim() || '#e8a13d'}" onchange="App.guardarColores()" style="width:52px;height:38px;padding:2px;cursor:pointer">
-          </div>
-          <button class="btn mini secundario" onclick="App.restablecerColores()" style="align-self:flex-end">Restablecer</button>
-        </div>
-      </div>
-
-      <div class="tarjeta">
         <h3>Organización</h3>
         <div class="acciones-linea">
           <input id="aj-org" value="${esc(Store.db.organizacion.nombre)}" style="flex:1;max-width:400px">
@@ -3262,8 +3183,6 @@ const App = {
 
   /* ============ Arranque: sesión, carga y login ============ */
   async init() {
-    this.aplicarTemaGuardado();
-    this.aplicarColoresGuardados();
     this.pantallaCarga();
     await Store.cargarSesion();
     if (!Store.sesion) { this.pantallaLogin(); return; }
