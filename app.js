@@ -661,10 +661,15 @@ const App = {
         const existente = Store.db.contactos.find(x =>
           dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         let contactoId;
-        // Un servidor puede ser de cualquier zona (o de fuera del todo): la zona por defecto solo
-        // se aplica a gente nueva, nunca se toca la de alguien que ya existía con la suya propia.
-        if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datos }); actualizados++; }
-        else { contactoId = await Store.guardarContactoYEsperar({ ...datos, zonaId }); creados++; }
+        // La zona viene del propio Excel (columna "Zona" o "Parroquia") si la trae y coincide con
+        // una zona dada de alta: en ese caso se aplica siempre, incluso a quien ya existía, porque
+        // es un dato real del archivo, no un valor inventado. Si el Excel no trae zona reconocible,
+        // se respeta la zona que ya tuviera (o el filtro seleccionado, solo para gente nueva).
+        const zonaExcel = String(buscar(f, 'Zona', 'Parroquia') || '').trim().toLowerCase();
+        const zonaEncontrada = zonaExcel && Store.db.zonas.find(z => z.nombre.toLowerCase() === zonaExcel);
+        const zonaAAplicar = zonaEncontrada ? zonaEncontrada.id : (existente ? existente.zonaId : zonaId);
+        if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datos, zonaId: zonaAAplicar }); actualizados++; }
+        else { contactoId = await Store.guardarContactoYEsperar({ ...datos, zonaId: zonaAAplicar }); creados++; }
 
         // Si se eligió un retiro y esta fila trae talla de polo, se inscribe como servidor en ese
         // retiro y se le pide el polo (reservado de stock o pendiente de pedir), igual que si lo
@@ -761,10 +766,15 @@ const App = {
         const existente = Store.db.contactos.find(x =>
           dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         let contactoId;
-        // La zona del retiro NUNCA se aplica a un contacto que ya existe (puede ser de cualquier
-        // zona o de fuera): eso solo tiene sentido como valor por defecto para gente nueva.
-        if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datosContacto }); actualizados++; }
-        else { contactoId = await Store.guardarContactoYEsperar({ ...datosContacto, zonaId: retiro?.zonaId }); creados++; }
+        // La zona viene del propio Excel (columna "Zona" o "Parroquia") si la trae y coincide con
+        // una zona dada de alta: en ese caso se aplica siempre, incluso a quien ya existía, porque
+        // es un dato real del archivo, no un valor inventado. Si el Excel no trae zona reconocible,
+        // se respeta la zona que ya tuviera (o la del retiro, solo como último recurso para gente nueva).
+        const zonaExcel = String(buscar(f, 'Zona', 'Parroquia') || '').trim().toLowerCase();
+        const zonaEncontrada = zonaExcel && Store.db.zonas.find(z => z.nombre.toLowerCase() === zonaExcel);
+        const zonaAAplicar = zonaEncontrada ? zonaEncontrada.id : (existente ? existente.zonaId : retiro?.zonaId);
+        if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datosContacto, zonaId: zonaAAplicar }); actualizados++; }
+        else { contactoId = await Store.guardarContactoYEsperar({ ...datosContacto, zonaId: zonaAAplicar }); creados++; }
 
         // El polo de caminante no se pide desde el Excel a través del formulario público, así que
         // hay que reservarlo/pedirlo aquí igual que hace la inscripción por formulario: si trae talla
