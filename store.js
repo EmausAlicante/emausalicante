@@ -29,7 +29,7 @@ function normalizarTelefono(v) {
   return `+34 ${digitos.slice(0, 3)} ${digitos.slice(3, 6)} ${digitos.slice(6, 9)}`;
 }
 
-const TALLAS = ['S', 'M', 'L', 'XL', '2XL', '3XL'];
+const TALLAS = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
 
 /* ---------- Traducción entre la forma de la app (camelCase) y las tablas (snake_case) ---------- */
 function contactoDesdeDB(r) {
