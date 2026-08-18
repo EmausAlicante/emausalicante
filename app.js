@@ -181,9 +181,24 @@ const App = {
     else if (this.ui.vista === 'formulario') contenido = this.vFormulario();
     else if (this.ui.vista === 'ajustes') contenido = this.vAjustes();
 
+    // Barra inferior móvil: hasta 4 vistas principales + "Más" (abre el menú completo)
+    const vistasBarra = vistas.slice(0, 4);
+    const bottomNav = `
+      <nav class="bottom-nav">
+        ${vistasBarra.map(([id, nombre]) => {
+          const [icono, ...resto] = nombre.split(' ');
+          const texto = resto.join(' ');
+          return `<button class="${this.ui.vista === id ? 'activo' : ''}" onclick="App.ir('${id}')">
+            <span class="icono">${icono}</span><span>${esc(texto)}</span>
+          </button>`;
+        }).join('')}
+        <button onclick="App.toggleMenu(true)"><span class="icono">☰</span><span>Más</span></button>
+      </nav>`;
+
     document.getElementById('app').innerHTML = `
       <button class="menu-toggle" onclick="App.toggleMenu()" aria-label="Abrir menú">☰</button>
       <div class="fondo-menu ${this.ui.menuAbierto ? 'visible' : ''}" onclick="App.toggleMenu(false)"></div>
+      ${bottomNav}
       <aside class="sidebar ${this.ui.menuAbierto ? 'abierto' : ''}">
         <div class="logo">
           ${logo ? `<img src="${logo}" alt="Logotipo">` : ''}
