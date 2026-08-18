@@ -513,13 +513,13 @@ const App = {
     const cabeceras = `
       <th style="width:34px"><input type="checkbox" ${todosSel ? 'checked' : ''} title="Seleccionar todos"
         onclick="event.stopPropagation()" onchange="App.selTodos(this.checked)"></th>` + visibles.map(col => `
-      <th draggable="true" title="Clic: ordenar · Arrastrar: mover columna"
+      <th class="ordenable" title="Clic: ordenar · Icono ⠿: arrastrar para mover la columna" onclick="App.colSort('${col.id}')">
+        <span class="asa" draggable="true" title="Arrastrar para mover"
+          onclick="event.stopPropagation()"
           ondragstart="App.colDragStart(event, '${col.id}')"
           ondragover="event.preventDefault()"
-          ondrop="App.colDrop(event, '${col.id}')"
-          onclick="App.colSort('${col.id}')"
-          style="cursor:pointer;user-select:none;white-space:nowrap">
-        ${col.titulo}${p.sortCol === col.id ? (p.sortDir === 1 ? ' ▲' : ' ▼') : ''}
+          ondrop="App.colDrop(event, '${col.id}')">⠿</span>${col.titulo}
+        <span class="flecha ${p.sortCol === col.id ? '' : 'inactiva'}">${p.sortCol === col.id ? (p.sortDir === 1 ? '▲' : '▼') : '⇅'}</span>
       </th>`).join('');
 
     const filas = lista.map(c =>
@@ -546,13 +546,13 @@ const App = {
                  value="${esc(this.ui.buscar)}" oninput="App.setBuscar(this.value)">
           <div class="acciones-linea" style="margin:0">
             ${nSel ? `<button class="btn peligro" onclick="App.eliminarSeleccionados()">🗑 Eliminar (${nSel})</button>` : ''}
-            <button class="btn secundario" onclick="App.toggleColPanel()">⚙ Columnas</button>
-            <button class="btn secundario" onclick="App.exportarContactosCSV()">⬇ Exportar CSV</button>
-            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar CSV
+            <button class="btn-icono" title="Elegir columnas visibles" aria-label="Columnas" onclick="App.toggleColPanel()">⚙️</button>
+            <button class="btn-icono" title="Exportar a CSV" aria-label="Exportar CSV" onclick="App.exportarContactosCSV()">⬇️</button>
+            <label class="btn-icono" title="Importar contactos desde CSV" aria-label="Importar CSV">📄
               <input type="file" accept=".csv,text/csv" style="display:none" onchange="App.importarContactosCSV(this)"></label>
-            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar servidores (Excel)
+            <label class="btn-icono" title="Importar servidores desde Excel" aria-label="Importar servidores (Excel)">📥
               <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarServidoresExcel(this, App.ui.impServRetiroId)"></label>
-            <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos (solo si alguno pide polo al darse de alta)" style="max-width:180px">
+            <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos al importar servidores (solo si alguno pide polo al darse de alta)" style="max-width:170px">
               <option value="">— sin inscribir a ningún retiro —</option>
               ${[...Store.db.retiros].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio))
                 .map(r => `<option value="${r.id}" ${this.ui.impServRetiroId === r.id ? 'selected' : ''}>${esc(r.nombre)} (${r.fechaInicio})</option>`).join('')}
@@ -560,9 +560,10 @@ const App = {
             <button class="btn" onclick="App.abrirContacto(null)">+ Nuevo contacto</button>
           </div>
         </div>
+        <p class="nota" style="margin-top:8px">⚙️ Columnas · ⬇️ Exportar CSV · 📄 Importar CSV · 📥 Importar servidores desde Excel</p>
         ${panelColumnas}
         ${lista.length ? `<div class="tabla-scroll"><table><thead><tr>${cabeceras}</tr></thead><tbody>${filas}</tbody></table></div>` : '<div class="vacio">No hay contactos.</div>'}
-        <p class="nota" style="margin-top:10px">Clic en una cabecera para ordenar (segundo clic invierte el orden) y arrástrala para mover la columna. La etiqueta cambia sola: con fecha de retiro vivido es <strong>Servidor</strong>; sin ella, <strong>Caminante</strong>.</p>
+        <p class="nota" style="margin-top:10px">Clic en una cabecera para ordenar (segundo clic invierte el orden) · arrastra el icono ⠿ para mover la columna. La etiqueta cambia sola: con fecha de retiro vivido es <strong>Servidor</strong>; sin ella, <strong>Caminante</strong>.</p>
       </div>`;
   },
 

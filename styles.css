@@ -23,6 +23,8 @@
   /* Texto */
   --texto: #e7ebf3;
   --texto-suave: #8a93ab;
+  --texto-fuerte: #ffffff;   /* títulos de tarjetas/cabecera: blanco en oscuro, oscuro en claro */
+  --chip-neutral: rgba(255, 255, 255, .06); /* fondo de badges neutros (pendiente/cerrado) */
 
   --radio: 14px;
   --sombra: 0 6px 24px rgba(0, 0, 0, .35);
@@ -83,7 +85,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; margin-bottom: 22px; flex-wrap: wrap;
 }
-.cabecera h2 { margin: 0; font-size: 1.45rem; color: #fff; }
+.cabecera h2 { margin: 0; font-size: 1.45rem; color: var(--texto-fuerte); }
 .cabecera .org { color: var(--texto-suave); font-size: .85rem; }
 
 select, input, textarea {
@@ -99,29 +101,41 @@ textarea { width: 100%; resize: vertical; }
 label { font-size: .82rem; color: var(--texto-suave); display: block; margin-bottom: 4px; }
 .campo { margin-bottom: 12px; }
 
-button.btn {
+.btn {
   font: inherit; cursor: pointer;
   background: var(--azul); color: #fff;
   border: none; border-radius: 999px; padding: 9px 18px;
   font-weight: 600;
+  display: inline-flex; align-items: center; gap: 7px;
   transition: background .12s ease, transform .05s ease;
 }
-button.btn:hover { background: var(--azul-oscuro); }
-button.btn:active { transform: translateY(1px); }
-button.btn.secundario { background: transparent; color: var(--texto); border: 1px solid var(--borde); }
-button.btn.secundario:hover { background: var(--tarjeta-alta); border-color: #33415e; }
-button.btn.ambar { background: var(--ambar); color: #241a08; }
-button.btn.ambar:hover { background: #d8901f; }
-button.btn.peligro { background: transparent; color: var(--rojo); border: 1px solid rgba(248,113,113,.4); }
-button.btn.peligro:hover { background: var(--rojo-suave); }
-button.btn.mini { padding: 5px 12px; font-size: .82rem; font-weight: 500; border-radius: 999px; }
+.btn:hover { background: var(--azul-oscuro); }
+.btn:active { transform: translateY(1px); }
+.btn.secundario { background: transparent; color: var(--texto); border: 1px solid var(--borde); }
+.btn.secundario:hover { background: var(--tarjeta-alta); border-color: #33415e; }
+.btn.ambar { background: var(--ambar); color: #241a08; }
+.btn.ambar:hover { background: #d8901f; }
+.btn.peligro { background: transparent; color: var(--rojo); border: 1px solid rgba(248,113,113,.4); }
+.btn.peligro:hover { background: var(--rojo-suave); }
+.btn.mini { padding: 5px 12px; font-size: .82rem; font-weight: 500; border-radius: 999px; }
+
+/* Botón redondo de solo icono, para acciones secundarias de barras de herramientas */
+.btn-icono {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: var(--tarjeta-alta); color: var(--texto);
+  border: 1px solid var(--borde); border-radius: 10px;
+  font-size: 1.05rem; cursor: pointer; padding: 0;
+  transition: background .12s ease, border-color .12s ease;
+}
+.btn-icono:hover { background: var(--borde); border-color: #33415e; }
 
 /* ---------- Tarjetas ---------- */
 .tarjeta {
   background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio);
   box-shadow: var(--sombra); padding: 18px 20px; margin-bottom: 18px;
 }
-.tarjeta h3 { margin: 0 0 12px; font-size: 1.05rem; color: #fff; }
+.tarjeta h3 { margin: 0 0 12px; font-size: 1.05rem; color: var(--texto-fuerte); }
 .fila-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .stat {
   background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio);
@@ -145,6 +159,12 @@ button.btn.mini { padding: 5px 12px; font-size: .82rem; font-weight: 500; border
 /* ---------- Tablas ---------- */
 table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 th { text-align: left; color: var(--texto-suave); font-size: .74rem; text-transform: uppercase; letter-spacing: .5px; padding: 8px 10px; border-bottom: 1px solid var(--borde); }
+th.ordenable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.ordenable:hover { color: var(--texto); }
+th.ordenable .asa { cursor: grab; opacity: .45; margin-right: 4px; font-size: .85em; }
+th.ordenable .asa:hover { opacity: .9; }
+th.ordenable .flecha { display: inline-block; width: 1em; opacity: .8; }
+th.ordenable .flecha.inactiva { opacity: .3; }
 td { padding: 9px 10px; border-bottom: 1px solid var(--borde); vertical-align: middle; color: var(--texto); }
 tr:hover td { background: var(--tarjeta-alta); }
 
@@ -153,9 +173,9 @@ tr:hover td { background: var(--tarjeta-alta); }
 .badge.servidor { background: var(--verde-suave); color: var(--verde); }
 .badge.caminante { background: var(--ambar-suave); color: var(--ambar); }
 .badge.rol { background: rgba(59,130,246,.16); color: var(--azul); }
-.badge.pendiente { background: rgba(255,255,255,.06); color: var(--texto-suave); }
+.badge.pendiente { background: var(--chip-neutral); color: var(--texto-suave); }
 .badge.confirmada { background: var(--verde-suave); color: var(--verde); }
-.badge.cerrado { background: rgba(255,255,255,.06); color: var(--texto-suave); }
+.badge.cerrado { background: var(--chip-neutral); color: var(--texto-suave); }
 .badge.abierto { background: var(--verde-suave); color: var(--verde); }
 .badge.sirve { background: rgba(59,130,246,.16); color: #7cb0ff; }
 .badge.veterano { background: rgba(167,139,250,.16); color: var(--morado); }
@@ -202,7 +222,7 @@ dialog::backdrop { background: rgba(4, 7, 15, .65); }
   box-shadow: var(--sombra); padding: 28px;
   border-top: 5px solid var(--ambar);
 }
-.form-publico h3 { font-size: 1.3rem; margin-top: 0; color: #fff; }
+.form-publico h3 { font-size: 1.3rem; margin-top: 0; color: var(--texto-fuerte); }
 .form-publico h4 {
   margin: 24px 0 10px; padding-top: 16px;
   border-top: 2px solid var(--borde);
@@ -302,10 +322,12 @@ body.claro {
   --fondo: #f4f5f7;
   --tarjeta: #ffffff;
   --tarjeta-alta: #eef1f6;
-  --borde: #e2e6ea;
-  --texto: #22303e;
-  --texto-suave: #6b7a89;
-  --sombra: 0 1px 3px rgba(20, 35, 60, .08);
+  --borde: #d8dee6;
+  --texto: #1c2733;
+  --texto-suave: #55637a;
+  --texto-fuerte: #14202f;
+  --chip-neutral: rgba(15, 23, 42, .07);
+  --sombra: 0 1px 3px rgba(20, 35, 60, .10);
   --ambar-suave: #fdf3e3;
   --verde-suave: #e6f4ec;
   --rojo-suave: #fbe8e6;
