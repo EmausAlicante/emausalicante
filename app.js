@@ -241,7 +241,7 @@ const App = {
           <h1>Emaús</h1><span>${esc(subtitulo)}</span>
         </div>
         <nav>${nav}</nav>
-        <div class="pie">v1 · datos de ejemplo<br>${esc(Store.db.organizacion.nombre)}</div>
+        <div class="pie">Andrés Catalá<br>M. 610 200 951</div>
       </aside>
       <div class="main">
         <div class="cabecera">
