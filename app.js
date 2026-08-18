@@ -95,6 +95,42 @@ const App = {
     this.render();
   },
 
+  // Tema claro/oscuro: se guarda en localStorage para recordarlo entre sesiones
+  alternarTema() {
+    const claro = document.body.classList.toggle('claro');
+    localStorage.setItem('emaus-tema', claro ? 'claro' : 'oscuro');
+    this.render();
+  },
+  aplicarTemaGuardado() {
+    if (localStorage.getItem('emaus-tema') === 'claro') document.body.classList.add('claro');
+  },
+
+  // Colores de acento personalizables desde Ajustes → Apariencia (se guardan por dispositivo/navegador)
+  guardarColores() {
+    const azul = document.getElementById('aj-color-azul').value;
+    const ambar = document.getElementById('aj-color-ambar').value;
+    document.documentElement.style.setProperty('--azul', azul);
+    document.documentElement.style.setProperty('--azul-oscuro', azul);
+    document.documentElement.style.setProperty('--ambar', ambar);
+    localStorage.setItem('emaus-colores', JSON.stringify({ azul, ambar }));
+  },
+  restablecerColores() {
+    document.documentElement.style.removeProperty('--azul');
+    document.documentElement.style.removeProperty('--azul-oscuro');
+    document.documentElement.style.removeProperty('--ambar');
+    localStorage.removeItem('emaus-colores');
+    this.render();
+  },
+  aplicarColoresGuardados() {
+    const guardado = localStorage.getItem('emaus-colores');
+    if (!guardado) return;
+    try {
+      const { azul, ambar } = JSON.parse(guardado);
+      if (azul) { document.documentElement.style.setProperty('--azul', azul); document.documentElement.style.setProperty('--azul-oscuro', azul); }
+      if (ambar) document.documentElement.style.setProperty('--ambar', ambar);
+    } catch (e) { /* preferencia corrupta: se ignora */ }
+  },
+
   setZona(id) {
     if (id === '__nueva__') {
       const z = this.pedirNuevaZona();
@@ -213,13 +249,18 @@ const App = {
             <h2 id="titulo-vista"></h2>
             <div class="org">${esc(Store.db.organizacion.nombre)}</div>
           </div>
-          <div>
-            <label>Zona</label>
-            <select onchange="App.setZona(this.value)">
-              <option value="all" ${this.ui.zonaId === 'all' ? 'selected' : ''}>Todas las zonas</option>
-              ${zonas}
-              <option value="__nueva__">➕ Nueva zona…</option>
-            </select>
+          <div style="display:flex; align-items:flex-end; gap:10px">
+            <div>
+              <label>Zona</label>
+              <select onchange="App.setZona(this.value)">
+                <option value="all" ${this.ui.zonaId === 'all' ? 'selected' : ''}>Todas las zonas</option>
+                ${zonas}
+                <option value="__nueva__">➕ Nueva zona…</option>
+              </select>
+            </div>
+            <button class="boton-tema" onclick="App.alternarTema()" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro/oscuro">
+              ${document.body.classList.contains('claro') ? '🌙' : '☀️'}
+            </button>
           </div>
         </div>
         ${contenido}
@@ -2971,6 +3012,22 @@ const App = {
 
     return `
       <div class="tarjeta">
+        <h3>Apariencia</h3>
+        <p class="nota">Cambia los colores de acento de toda la aplicación. Se guardan en este dispositivo/navegador.</p>
+        <div class="acciones-linea" style="align-items:center;margin-top:10px">
+          <div>
+            <label>Color principal (botones, menú activo)</label>
+            <input type="color" id="aj-color-azul" value="${getComputedStyle(document.documentElement).getPropertyValue('--azul').trim() || '#3b82f6'}" onchange="App.guardarColores()" style="width:52px;height:38px;padding:2px;cursor:pointer">
+          </div>
+          <div>
+            <label>Color de marca (líder, destacados)</label>
+            <input type="color" id="aj-color-ambar" value="${getComputedStyle(document.documentElement).getPropertyValue('--ambar').trim() || '#e8a13d'}" onchange="App.guardarColores()" style="width:52px;height:38px;padding:2px;cursor:pointer">
+          </div>
+          <button class="btn mini secundario" onclick="App.restablecerColores()" style="align-self:flex-end">Restablecer</button>
+        </div>
+      </div>
+
+      <div class="tarjeta">
         <h3>Organización</h3>
         <div class="acciones-linea">
           <input id="aj-org" value="${esc(Store.db.organizacion.nombre)}" style="flex:1;max-width:400px">
@@ -3189,6 +3246,8 @@ const App = {
 
   /* ============ Arranque: sesión, carga y login ============ */
   async init() {
+    this.aplicarTemaGuardado();
+    this.aplicarColoresGuardados();
     this.pantallaCarga();
     await Store.cargarSesion();
     if (!Store.sesion) { this.pantallaLogin(); return; }

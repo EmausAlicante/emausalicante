@@ -102,7 +102,7 @@ label { font-size: .82rem; color: var(--texto-suave); display: block; margin-bot
 button.btn {
   font: inherit; cursor: pointer;
   background: var(--azul); color: #fff;
-  border: none; border-radius: 9px; padding: 9px 16px;
+  border: none; border-radius: 999px; padding: 9px 18px;
   font-weight: 600;
   transition: background .12s ease, transform .05s ease;
 }
@@ -114,7 +114,7 @@ button.btn.ambar { background: var(--ambar); color: #241a08; }
 button.btn.ambar:hover { background: #d8901f; }
 button.btn.peligro { background: transparent; color: var(--rojo); border: 1px solid rgba(248,113,113,.4); }
 button.btn.peligro:hover { background: var(--rojo-suave); }
-button.btn.mini { padding: 5px 10px; font-size: .82rem; font-weight: 500; }
+button.btn.mini { padding: 5px 12px; font-size: .82rem; font-weight: 500; border-radius: 999px; }
 
 /* ---------- Tarjetas ---------- */
 .tarjeta {
@@ -294,3 +294,32 @@ hr.sep { border: none; border-top: 1px solid var(--borde); margin: 16px 0; }
 @media (max-width: 420px) {
   :root { font-size: 14px; }
 }
+
+/* ---------- Tema claro (alternativa al oscuro por defecto) ---------- */
+/* El sidebar se queda siempre en azul marino oscuro con texto claro;
+   lo que cambia es el fondo y las tarjetas del contenido principal. */
+body.claro {
+  --fondo: #f4f5f7;
+  --tarjeta: #ffffff;
+  --tarjeta-alta: #eef1f6;
+  --borde: #e2e6ea;
+  --texto: #22303e;
+  --texto-suave: #6b7a89;
+  --sombra: 0 1px 3px rgba(20, 35, 60, .08);
+  --ambar-suave: #fdf3e3;
+  --verde-suave: #e6f4ec;
+  --rojo-suave: #fbe8e6;
+  --morado-suave: #efe9fd;
+}
+body.claro dialog::backdrop { background: rgba(20, 35, 60, .45); }
+body.claro .fondo-menu.visible { background: rgba(20, 35, 60, .45); }
+
+/* ---------- Botón de tema claro/oscuro ---------- */
+.boton-tema {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--tarjeta-alta); border: 1px solid var(--borde);
+  color: var(--texto); cursor: pointer; font-size: 1.05rem;
+  flex-shrink: 0;
+}
+body.claro .boton-tema { background: #fff; }
