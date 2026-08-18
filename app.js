@@ -2940,9 +2940,24 @@ const App = {
 
   /* ============ Ajustes ============ */
   vAjustes() {
-    const zonasFilas = Store.db.zonas.map(z => `
+    const zonasFilas = Store.db.zonas.map(z => {
+      const usos = Store.usosDeZona(z.id);
+      const otrasZonas = Store.db.zonas.filter(x => x.id !== z.id);
+      return `
       <tr><td><strong>${esc(z.nombre)}</strong></td><td>${z.tipo}</td>
-      <td>${Store.contactosDeZona(z.id).length} contactos</td></tr>`).join('');
+      <td>${Store.contactosDeZona(z.id).length} contactos</td>
+      <td>${usos === 0
+        ? `<button class="btn mini peligro" onclick="App.borrarZona('${z.id}')">Eliminar</button>`
+        : otrasZonas.length ? `
+          <div class="acciones-linea" style="flex-wrap:wrap">
+            <select id="mover-zona-${z.id}" style="max-width:160px">
+              ${otrasZonas.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}
+            </select>
+            <button class="btn mini peligro" onclick="App.moverZonaYBorrar('${z.id}')">Mover todo aquí y eliminar</button>
+          </div>
+          <span class="nota">Tiene contactos, retiros o equipo de zona — muévelos a otra zona para poder eliminarla.</span>`
+          : `<span class="nota" title="Tiene contactos, retiros o equipo de zona; muévelos o bórralos primero">No se puede borrar</span>`}</td></tr>`;
+    }).join('');
     const pl = Store.db.plantillas;
     const NOMBRES_ROL = { coordinador: 'Coordinador/a', material: 'Material', tesoreria: 'Tesorería', actividades: 'Actividades' };
     const lideresFilas = Store.db.lideres.length ? `
@@ -2985,7 +3000,7 @@ const App = {
 
       <div class="tarjeta">
         <h3>Zonas</h3>
-        ${zonasFilas ? `<table><thead><tr><th>Nombre</th><th>Tipo</th><th>Contactos</th></tr></thead><tbody>${zonasFilas}</tbody></table>` : '<div class="vacio">Sin zonas.</div>'}
+        ${zonasFilas ? `<table><thead><tr><th>Nombre</th><th>Tipo</th><th>Contactos</th><th></th></tr></thead><tbody>${zonasFilas}</tbody></table>` : '<div class="vacio">Sin zonas.</div>'}
         <hr class="sep">
         <div class="acciones-linea">
           <input id="aj-zona-nombre" placeholder="Nombre de la zona…">
@@ -3090,6 +3105,24 @@ const App = {
     const nombre = document.getElementById('aj-zona-nombre').value.trim();
     if (!nombre) return;
     Store.nuevaZona(nombre, document.getElementById('aj-zona-tipo').value);
+    this.render();
+  },
+
+  borrarZona(id) {
+    const z = Store.zona(id);
+    if (!confirm(`¿Eliminar la zona «${z?.nombre || ''}»? No tiene contactos, retiros ni equipo, así que no afecta a nada más.`)) return;
+    Store.borrarZona(id);
+    this.render();
+  },
+
+  async moverZonaYBorrar(zonaOrigenId) {
+    const sel = document.getElementById(`mover-zona-${zonaOrigenId}`);
+    const destinoId = sel && sel.value;
+    if (!destinoId) return;
+    const origen = Store.zona(zonaOrigenId), destino = Store.zona(destinoId);
+    const usos = Store.usosDeZona(zonaOrigenId);
+    if (!confirm(`¿Mover los ${usos} elemento(s) (contactos, retiros, equipos) de «${origen?.nombre}» a «${destino?.nombre}», y eliminar «${origen?.nombre}»?\n\nEsto no cambia nada más de esas personas o retiros, solo su zona.`)) return;
+    await Store.moverZonaYBorrar(zonaOrigenId, destinoId);
     this.render();
   },
 

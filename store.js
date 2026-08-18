@@ -907,6 +907,42 @@ const Store = {
     return z;
   },
 
+  // Cuántas cosas dependen todavía de esta zona (contactos, retiros, equipos de zona). Si es 0,
+  // se puede borrar sin problema; si no, la base de datos la rechazaría igualmente por clave foránea.
+  usosDeZona(zonaId) {
+    return this.contactosDeZona(zonaId).length
+      + this.db.retiros.filter(r => r.zonaId === zonaId).length
+      + this.db.equipos.filter(e => e.zonaId === zonaId).length;
+  },
+
+  borrarZona(zonaId) {
+    this.db.zonas = this.db.zonas.filter(z => z.id !== zonaId);
+    this._persist(sb.from('zonas').delete().eq('id', zonaId), 'No se pudo eliminar la zona');
+  },
+
+  // Reasigna todo lo que dependía de zonaOrigenId (contactos, retiros, equipos de zona) a
+  // zonaDestinoId, y luego borra zonaOrigenId (ya se queda sin nada dentro). Útil para fusionar
+  // una zona duplicada o mal creada con la que sí toca, sin tener que mover contacto por contacto.
+  async moverZonaYBorrar(zonaOrigenId, zonaDestinoId) {
+    for (const c of this.contactosDeZona(zonaOrigenId)) {
+      c.zonaId = zonaDestinoId;
+      await this._persist(sb.from('contactos').update({ zona_id: zonaDestinoId }).eq('id', c.id), 'No se pudo mover un contacto de zona');
+    }
+    for (const r of this.db.retiros.filter(r => r.zonaId === zonaOrigenId)) {
+      r.zonaId = zonaDestinoId;
+      await this._persist(sb.from('retiros').update({ zona_id: zonaDestinoId }).eq('id', r.id), 'No se pudo mover un retiro de zona');
+    }
+    for (const e of this.db.equipos.filter(e => e.zonaId === zonaOrigenId)) {
+      // equipos tiene clave primaria compuesta (zona_id, anio): hay que borrar la fila vieja e
+      // insertar una nueva con la zona nueva, un simple update de zona_id rompería la clave.
+      const { zonaId, anio, ...resto } = e;
+      await this._persist(sb.from('equipos').delete().eq('zona_id', zonaOrigenId).eq('anio', anio), 'No se pudo mover un equipo de zona');
+      e.zonaId = zonaDestinoId;
+      await this._persist(sb.from('equipos').insert(equipoADB(zonaDestinoId, anio, resto)), 'No se pudo mover un equipo de zona');
+    }
+    this.borrarZona(zonaOrigenId);
+  },
+
   /* ---------- Organización, plantillas y ajustes ---------- */
   // cambios: { nombre?, logo?, logoBlob? } — logoBlob dispara la subida a Supabase Storage
   guardarOrganizacion(cambios) {
