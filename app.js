@@ -529,7 +529,7 @@ const App = {
     ).join('');
 
     const panelColumnas = this.ui.colPanel ? `
-      <div style="background:#f8f9fb;border:1px solid var(--borde);border-radius:8px;padding:10px 14px;margin-bottom:12px">
+      <div style="background:var(--tarjeta-alta);border:1px solid var(--borde);border-radius:8px;padding:10px 14px;margin-bottom:12px">
         <strong style="font-size:.85rem">Columnas visibles</strong>
         <span class="nota"> — arrastra una cabecera de la tabla para cambiar el orden de las columnas.</span>
         <div style="display:flex;flex-wrap:wrap;gap:2px 22px;margin-top:6px">
@@ -1447,7 +1447,7 @@ const App = {
       return `<div class="etiqueta">
         <div class="etiqueta-nombre">${esc(c.nombre)}</div>
         <div class="etiqueta-apellidos">${esc(c.apellidos)}</div>
-        <div class="etiqueta-papel">${i.papel === 'servidor' ? 'SIRVE' : 'CAMINANTE'}</div>
+        <div class="etiqueta-papel">${i.papel === 'servidor' ? 'SERVIDOR' : 'CAMINANTE'}</div>
         <div class="etiqueta-retiro">${esc(r?.nombre || '')}</div>
       </div>`;
     }).join('');
@@ -1847,7 +1847,7 @@ const App = {
       const asignados = inscripcionesCaminantes.filter(i => i.palancasAsignadoA === mId);
       const contactados = asignados.filter(i => i.palancasContactado).length;
       return `
-        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
+        <div class="tarjeta" style="margin-bottom:10px;background:var(--tarjeta-alta)">
           <div class="acciones-linea" style="justify-content:space-between">
             <strong>${esc(miembro.nombre)} ${esc(miembro.apellidos)}</strong>
             <span class="nota">${contactados}/${asignados.length} contactados</span>
@@ -2009,7 +2009,7 @@ const App = {
       const lider = m.liderContactoId ? Store.contacto(m.liderContactoId) : null;
       const colider = m.coliderContactoId ? Store.contacto(m.coliderContactoId) : null;
       return `
-        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
+        <div class="tarjeta" style="margin-bottom:10px;background:var(--tarjeta-alta)">
           <div class="acciones-linea" style="justify-content:space-between">
             <strong>${esc(m.nombre) || 'Sin nombre'}</strong>
             <button class="btn mini peligro" onclick="App.borrarMesa('${r.id}','${m.id}')">Eliminar mesa</button>
@@ -2139,7 +2139,7 @@ const App = {
       const disponibles = inscritos.filter(c => !asignadoId(c) || asignadoId(c) === h.id).filter(c => asignadoId(c) !== h.id);
       const solo = ocupantes.length === 1 && h.capacidad >= 1;
       return `
-        <div class="tarjeta" style="margin-bottom:10px;background:#f8f9fb">
+        <div class="tarjeta" style="margin-bottom:10px;background:var(--tarjeta-alta)">
           <div class="acciones-linea" style="justify-content:space-between">
             <strong>${esc(h.nombre) || 'Sin nombre'} · ${ocupantes.length}/${h.capacidad}</strong>
             <button class="btn mini peligro" onclick="App.borrarHabitacion('${r.id}','${h.id}')">Eliminar habitación</button>
