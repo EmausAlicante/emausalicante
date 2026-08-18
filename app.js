@@ -584,7 +584,7 @@ const App = {
     if (!file) return;
     const retiro = retiroId ? Store.retiro(retiroId) : null;
     const lector = new FileReader();
-    lector.onload = (e) => {
+    lector.onload = async (e) => {
       let filas;
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
@@ -655,8 +655,8 @@ const App = {
         const existente = Store.db.contactos.find(x =>
           dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         let contactoId;
-        if (existente) { contactoId = Store.guardarContacto({ id: existente.id, ...datos }); actualizados++; }
-        else { contactoId = Store.guardarContacto(datos); creados++; }
+        if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datos }); actualizados++; }
+        else { contactoId = await Store.guardarContactoYEsperar(datos); creados++; }
 
         // Si se eligió un retiro y esta fila trae talla de polo, se inscribe como servidor en ese
         // retiro y se le pide el polo (reservado de stock o pendiente de pedir), igual que si lo
@@ -677,7 +677,7 @@ const App = {
               };
             }
           }
-          Store.inscribir(retiroId, contactoId, 'servidor', detallesIns);
+          await Store.inscribirYEsperar(retiroId, contactoId, 'servidor', detallesIns);
         }
       }
       const msgRetiro = retiro ? ` Inscritos en «${esc(retiro.nombre)}».` : '';
@@ -700,7 +700,7 @@ const App = {
     if (!retiroId) { alert('Elige antes el retiro en el que inscribirlos.'); input.value = ''; return; }
     const retiro = Store.retiro(retiroId);
     const lector = new FileReader();
-    lector.onload = (e) => {
+    lector.onload = async (e) => {
       let filas;
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
@@ -754,8 +754,8 @@ const App = {
         const existente = Store.db.contactos.find(x =>
           dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         let contactoId;
-        if (existente) { contactoId = Store.guardarContacto({ id: existente.id, ...datosContacto }); actualizados++; }
-        else { contactoId = Store.guardarContacto(datosContacto); creados++; }
+        if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datosContacto }); actualizados++; }
+        else { contactoId = await Store.guardarContactoYEsperar(datosContacto); creados++; }
 
         // El polo de caminante no se pide desde el Excel a través del formulario público, así que
         // hay que reservarlo/pedirlo aquí igual que hace la inscripción por formulario: si trae talla
@@ -777,7 +777,7 @@ const App = {
           }
         }
 
-        const insId = Store.inscribir(retiroId, contactoId, 'caminante', detallesIns);
+        const insId = await Store.inscribirYEsperar(retiroId, contactoId, 'caminante', detallesIns);
         Store.actualizarInscripcion(insId, {
           palancasContacto1Nombre: buscar(f, 'persona de contacto 1'),
           palancasContacto1Telefono: String(buscar(f, 'Teléfono (1)') || '').trim(),

@@ -456,6 +456,25 @@ const Store = {
     return datos.id;
   },
 
+  // Igual que guardarContacto, pero devuelve una promesa que no se resuelve hasta que el contacto
+  // esté realmente guardado en la base de datos. Imprescindible antes de crear una inscripción u
+  // otra fila que dependa de este contacto (si no, puede llegar antes y Supabase la rechaza por
+  // clave foránea, sobre todo en importaciones masivas donde se encadenan muchas filas seguidas).
+  async guardarContactoYEsperar(datos) {
+    if ('telefono' in datos) datos.telefono = normalizarTelefono(datos.telefono);
+    if ('contactoEmergenciaTelefono' in datos) datos.contactoEmergenciaTelefono = normalizarTelefono(datos.contactoEmergenciaTelefono);
+    if (datos.id) {
+      const c = this.contacto(datos.id);
+      Object.assign(c, datos);
+      await this._persist(sb.from('contactos').upsert(contactoADB(c)), 'No se pudo guardar el contacto');
+    } else {
+      datos.id = uid();
+      this.db.contactos.push(datos);
+      await this._persist(sb.from('contactos').insert(contactoADB(datos)), 'No se pudo crear el contacto');
+    }
+    return datos.id;
+  },
+
   /* Alta masiva: se reutiliza guardarContacto() en bucle desde App.importarServidoresExcel,
      así que no hace falta un método aparte aquí. */
 
@@ -547,6 +566,24 @@ const Store = {
     const ins = { id: uid(), retiroId, contactoId, papel, estado: 'pendiente', detalles: detalles || null, pagado: false, metodoPago: '', notas: '' };
     this.db.inscripciones.push(ins);
     this._persist(sb.from('inscripciones').insert(inscripcionADB(ins)), 'No se pudo crear la inscripción');
+    return ins.id;
+  },
+
+  // Igual que inscribir(), pero no devuelve el id hasta que la fila esté realmente guardada en la
+  // base de datos. Imprescindible antes de hacer un actualizarInscripcion() justo después en el
+  // mismo golpe (como en las importaciones), o esa actualización puede llegar antes que la propia
+  // inscripción y no encontrar la fila (fallo silencioso, sin ningún error visible).
+  async inscribirYEsperar(retiroId, contactoId, papel, detalles) {
+    const ya = this.db.inscripciones.find(i => i.retiroId === retiroId && i.contactoId === contactoId);
+    if (ya) {
+      if (papel) ya.papel = papel;
+      if (detalles) ya.detalles = detalles;
+      await this._persist(sb.from('inscripciones').update({ papel: ya.papel, detalles: ya.detalles }).eq('id', ya.id), 'No se pudo actualizar la inscripción');
+      return ya.id;
+    }
+    const ins = { id: uid(), retiroId, contactoId, papel, estado: 'pendiente', detalles: detalles || null, pagado: false, metodoPago: '', notas: '' };
+    this.db.inscripciones.push(ins);
+    await this._persist(sb.from('inscripciones').insert(inscripcionADB(ins)), 'No se pudo crear la inscripción');
     return ins.id;
   },
 
