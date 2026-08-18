@@ -492,17 +492,17 @@ const App = {
             ${nSel ? `<button class="btn peligro" onclick="App.eliminarSeleccionados()">🗑 Eliminar (${nSel})</button>` : ''}
             <button class="btn secundario" onclick="App.toggleColPanel()">⚙ Columnas</button>
             <button class="btn secundario" onclick="App.exportarContactosCSV()">⬇ Exportar CSV</button>
-            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar CSV
-              <input type="file" accept=".csv,text/csv" style="display:none" onchange="App.importarContactosCSV(this)"></label>
+            <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar CSV/Excel
+              <input type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="App.importarContactosCSV(this)"></label>
             <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar servidores (Excel)
-              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarServidoresExcel(this, App.ui.impServRetiroId)"></label>
+              <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="App.importarServidoresExcel(this, App.ui.impServRetiroId)"></label>
             <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos (solo si alguno pide polo al darse de alta)" style="max-width:180px">
               <option value="">— sin inscribir a ningún retiro —</option>
               ${[...Store.db.retiros].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio))
                 .map(r => `<option value="${r.id}" ${this.ui.impServRetiroId === r.id ? 'selected' : ''}>${esc(r.nombre)} (${r.fechaInicio})</option>`).join('')}
             </select>
             <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar caminantes (Excel)
-              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarCaminantesExcel(this, App.ui.impCamRetiroId)"></label>
+              <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="App.importarCaminantesExcel(this, App.ui.impCamRetiroId)"></label>
             <select onchange="App.setImportarCaminantesRetiro(this.value)" title="Retiro en el que inscribirlos (obligatorio)" style="max-width:180px">
               <option value="">— elige el retiro —</option>
               ${[...Store.db.retiros].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio))
@@ -535,23 +535,30 @@ const App = {
     const lector = new FileReader();
     lector.onload = () => {
       let filas;
-      try { filas = csvParse(lector.result); } catch (e) { alert('No se pudo leer el archivo CSV.'); return; }
-      if (!filas.length) { alert('El CSV no tiene filas de datos.'); input.value = ''; return; }
+      try {
+        const wb = XLSX.read(new Uint8Array(lector.result), { type: 'array', cellDates: true });
+        const hoja = wb.Sheets[wb.SheetNames[0]];
+        filas = XLSX.utils.sheet_to_json(hoja, { defval: '' });
+      } catch (e) { alert('No se pudo leer el archivo. ¿Es un CSV, .xls o .xlsx válido?'); input.value = ''; return; }
+      if (!filas.length) { alert('El archivo no tiene filas de datos.'); input.value = ''; return; }
       let creados = 0, actualizados = 0;
       const avisosZona = new Set();
       const zonaPorDefecto = this.ui.zonaId !== 'all' ? this.ui.zonaId : (Store.db.zonas[0]?.id || '');
       for (const f of filas) {
         if (!f.nombre && !f.apellidos) continue;
-        let zonaId = zonaPorDefecto;
+        const dni = (f.dni || '').toUpperCase();
+        const email = (f.email || '').toLowerCase();
+        const existente = Store.db.contactos.find(x =>
+          dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
+        // La zona solo se fija/cambia si el CSV trae una columna "zona" explícita y válida.
+        // Si no la trae, un contacto nuevo cae en la zona por defecto, pero uno que YA existía
+        // conserva la suya (nunca se le cambia sin que el CSV lo diga expresamente).
+        let zonaId = existente ? existente.zonaId : zonaPorDefecto;
         if (f.zona) {
           const z = Store.db.zonas.find(x => x.nombre.toLowerCase() === f.zona.trim().toLowerCase());
           if (z) zonaId = z.id;
           else { avisosZona.add(f.zona.trim()); }
         }
-        const dni = (f.dni || '').toUpperCase();
-        const email = (f.email || '').toLowerCase();
-        const existente = Store.db.contactos.find(x =>
-          dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         const datos = {
           nombre: f.nombre || (existente ? existente.nombre : ''),
           apellidos: f.apellidos || (existente ? existente.apellidos : ''),
@@ -571,7 +578,7 @@ const App = {
       this.render();
     };
     lector.onerror = () => alert('No se pudo leer el archivo.');
-    lector.readAsText(file, 'utf-8');
+    lector.readAsArrayBuffer(file);
   },
 
   // Importa el Excel/CSV exportado por el típico formulario de Google para altas de servidores.
@@ -638,7 +645,6 @@ const App = {
           localidad: buscar(f, 'Localidad'),
           fechaNacimiento: aFechaISO(buscar(f, 'Fecha de Nacimiento')),
           fechaExpedicionDni: aFechaISO(buscar(f, 'Fecha expedición DNI')),
-          zonaId,
           fechaRetiro: anioMatch ? `${anioMatch[0]}-01-01` : '',
           parroquiaCamino,
           serviciosPrevios: primeraVez ? 0 : 1,
@@ -655,8 +661,10 @@ const App = {
         const existente = Store.db.contactos.find(x =>
           dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         let contactoId;
+        // Un servidor puede ser de cualquier zona (o de fuera del todo): la zona por defecto solo
+        // se aplica a gente nueva, nunca se toca la de alguien que ya existía con la suya propia.
         if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datos }); actualizados++; }
-        else { contactoId = await Store.guardarContactoYEsperar(datos); creados++; }
+        else { contactoId = await Store.guardarContactoYEsperar({ ...datos, zonaId }); creados++; }
 
         // Si se eligió un retiro y esta fila trae talla de polo, se inscribe como servidor en ese
         // retiro y se le pide el polo (reservado de stock o pendiente de pedir), igual que si lo
@@ -747,15 +755,16 @@ const App = {
           fechaExpedicionDni: aFechaISO(buscar(f, 'Fecha expedición DNI')),
           estadoCivil: buscar(f, 'Estado Civil'),
           tallaPolo: buscar(f, 'Talla de camisa', 'Talla de polo'),
-          zonaId: retiro?.zonaId,
           politicaAceptada: String(buscar(f, 'Política privacidad', 'Política de privacidad')).trim().toLowerCase().startsWith('acepto')
         };
 
         const existente = Store.db.contactos.find(x =>
           dni ? (x.dni || '').toUpperCase() === dni : (email && (x.email || '').toLowerCase() === email));
         let contactoId;
+        // La zona del retiro NUNCA se aplica a un contacto que ya existe (puede ser de cualquier
+        // zona o de fuera): eso solo tiene sentido como valor por defecto para gente nueva.
         if (existente) { contactoId = await Store.guardarContactoYEsperar({ id: existente.id, ...datosContacto }); actualizados++; }
-        else { contactoId = await Store.guardarContactoYEsperar(datosContacto); creados++; }
+        else { contactoId = await Store.guardarContactoYEsperar({ ...datosContacto, zonaId: retiro?.zonaId }); creados++; }
 
         // El polo de caminante no se pide desde el Excel a través del formulario público, así que
         // hay que reservarlo/pedirlo aquí igual que hace la inscripción por formulario: si trae talla
@@ -1160,15 +1169,15 @@ const App = {
     const pagados = inscripciones.filter(i => i.pagado).length;
 
     const yaInscritos = inscripciones.map(i => i.contactoId);
-    // Normalmente solo se apunta gente de la propia zona, pero se permite cualquier zona
-    // para casos excepcionales (ej. un retiro combinado entre dos zonas).
+    // Un servidor puede venir de cualquier parte, no solo de la zona del retiro — se muestran
+    // agrupados igualmente para que sea fácil encontrar primero a los de la propia zona.
     const candidatosZona = Store.contactosDeZona(r.zonaId).filter(c => !yaInscritos.includes(c.id));
     const candidatosOtrasZonas = Store.db.contactos.filter(c => c.zonaId !== r.zonaId && !yaInscritos.includes(c.id));
     const candidatos = candidatosZona.concat(candidatosOtrasZonas);
     const opcionesIns = (candidatosZona.length ? `<optgroup label="${esc(zona?.nombre || 'Esta zona')}">` : '') +
       candidatosZona.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)} (${Store.tipo(c)})</option>`).join('') +
       (candidatosZona.length ? '</optgroup>' : '') +
-      (candidatosOtrasZonas.length ? '<optgroup label="Otras zonas (caso excepcional)">' : '') +
+      (candidatosOtrasZonas.length ? '<optgroup label="De otras zonas">' : '') +
       candidatosOtrasZonas.map(c => `<option value="${c.id}">${esc(c.nombre)} ${esc(c.apellidos)} (${Store.tipo(c)}) — ${esc(Store.zona(c.zonaId)?.nombre || '')}</option>`).join('') +
       (candidatosOtrasZonas.length ? '</optgroup>' : '');
 
@@ -1295,7 +1304,7 @@ const App = {
         </div>` : ''}
         <div class="acciones-linea" style="margin-top:8px">
           <label class="btn secundario mini" style="margin:0;cursor:pointer">⬆ Importar caminantes (Excel)
-            <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarCaminantesExcel(this, '${r.id}')"></label>
+            <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="App.importarCaminantesExcel(this, '${r.id}')"></label>
         </div>
       </div>
 
@@ -1586,7 +1595,7 @@ const App = {
           <h3 style="margin:0">🕐 Programa del retiro</h3>
           <div class="acciones-linea" style="margin:0">
             <label class="btn secundario mini" style="margin:0;cursor:pointer">⬆ Importar cronograma (Excel)
-              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.importarProgramaExcel(this, '${r.id}')"></label>
+              <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="App.importarProgramaExcel(this, '${r.id}')"></label>
             <button class="btn mini" onclick="App.dialogoActividad(null, '${r.id}')">+ Añadir al programa</button>
           </div>
         </div>
