@@ -1172,7 +1172,7 @@ const App = {
       const veterano = i.papel === 'servidor' ? (nAntes > 0 || Store.haServidoAntes(c.id, r.fechaInicio)) : false;
       return `<tr>
         <td><strong>${esc(c.nombre)} ${esc(c.apellidos)}</strong></td>
-        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span>
+        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span>
             ${i.papel === 'servidor' ? (veterano ? `<span class="badge veterano">Ya ha servido${nAntes > 0 ? ' ×' + nAntes : ''}</span>` : '<span class="badge caminante">1ª vez sirviendo</span>') : ''}</td>
         <td>${esc(c.telefono || '—')}</td>
         <td>
@@ -1407,7 +1407,7 @@ const App = {
       if (!c) return '';
       return `<tr>
         <td>${esc(c.nombre)} ${esc(c.apellidos)}</td>
-        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
+        <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span></td>
         <td><label class="check-linea" style="margin:0"><input type="checkbox" ${i.etiquetaImpresa ? 'checked' : ''} onchange="App.insCampo('${i.id}','etiquetaImpresa',this.checked,true)"> Impresa</label></td>
       </tr>`;
     }).join('');
@@ -1585,7 +1585,7 @@ const App = {
 
     const filasHtml = filas.map(f => `<tr>
         <td>${esc(f.nombre)} ${esc(f.apellidos)}</td>
-        <td><span class="badge ${f.papel}">${f.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
+        <td><span class="badge ${f.papel}">${f.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span></td>
         <td>⚠️ ${esc(f.alergias)}</td>
       </tr>`).join('');
 
@@ -2674,7 +2674,7 @@ const App = {
         if (!c) return '';
         return `<tr>
           <td><strong>${esc(c.nombre)} ${esc(c.apellidos)}</strong>${i.esAngelito ? ' <span class="badge" style="font-size:.65rem">👼 angelito</span>' : ''}</td>
-          <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Sirve' : 'Caminante'}</span></td>
+          <td><span class="badge ${i.papel}">${i.papel === 'servidor' ? 'Servidor' : 'Caminante'}</span></td>
           <td style="white-space:nowrap">
             <label class="check-linea" style="margin:0 0 4px"><input type="checkbox" ${i.pagado ? 'checked' : ''} onchange="App.insCampo('${i.id}', 'pagado', this.checked, true)"> Pagado</label>
             <select onchange="App.insCampo('${i.id}', 'metodoPago', this.value)">${opcionesFormasPago(i.metodoPago)}</select>
