@@ -967,7 +967,8 @@ const App = {
       const historial = otros.length
         ? `<hr class="sep"><p class="nota"><strong>Equipos de otros años</strong> (quien ya fue líder no aparece en el desplegable de líder):</p>` +
           otros.map(p =>
-            `<p class="nota">· ${p.anio} · equipo «${esc(p.alias || '')}» — Líder: <strong>${esc(nom(p.lider?.contactoId))}</strong> · Colíderes: ${(p.colideres || []).filter(x => x.contactoId).map(x => esc(nom(x.contactoId))).join(', ') || '—'}</p>`
+            `<p class="nota">· ${p.anio} · equipo «${esc(p.alias || '')}» — Líder: <strong>${esc(nom(p.lider?.contactoId))}</strong> · Colíderes: ${(p.colideres || []).filter(x => x.contactoId).map(x => esc(nom(x.contactoId))).join(', ') || '—'}
+              <a href="#" onclick="event.preventDefault();App.borrarEquipo('${z.id}', ${p.anio})" style="margin-left:6px;color:var(--rojo, #c0392b)">✕ quitar</a></p>`
           ).join('')
         : '';
       const existeEquipo = !!Store.equipoDe(z.id, anio);
