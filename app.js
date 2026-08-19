@@ -496,7 +496,7 @@ const App = {
               <input type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="App.importarContactosCSV(this)"></label>
             <label class="btn secundario" style="margin:0;cursor:pointer">⬆ Importar servidores (Excel)
               <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="App.importarServidoresExcel(this, App.ui.impServRetiroId)"></label>
-            <select onchange="App.setImportarServidoresRetiro(this.value)" title="Retiro en el que inscribirlos (solo si alguno pide polo al darse de alta)" style="max-width:180px">
+            <select onchange="App.setImportarServidoresRetiro(this.value)" title="Si eliges un retiro, TODOS los importados quedarán inscritos como servidores de ese retiro (y además se les pedirá el polo si el Excel trae talla)" style="max-width:220px">
               <option value="">— sin inscribir a ningún retiro —</option>
               ${[...Store.db.retiros].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio))
                 .map(r => `<option value="${r.id}" ${this.ui.impServRetiroId === r.id ? 'selected' : ''}>${esc(r.nombre)} (${r.fechaInicio})</option>`).join('')}
@@ -514,6 +514,7 @@ const App = {
         ${panelColumnas}
         ${lista.length ? `<div class="tabla-scroll"><table><thead><tr>${cabeceras}</tr></thead><tbody>${filas}</tbody></table></div>` : '<div class="vacio">No hay contactos.</div>'}
         <p class="nota" style="margin-top:10px">Clic en una cabecera para ordenar (segundo clic invierte el orden) y arrástrala para mover la columna. La etiqueta cambia sola: con fecha de retiro vivido es <strong>Servidor</strong>; sin ella, <strong>Caminante</strong>.</p>
+        <p class="nota">⚠️ Al "Importar servidores (Excel)": si dejas el desplegable en <strong>«— sin inscribir a ningún retiro —»</strong>, se crean/actualizan los contactos pero <strong>NO</strong> quedan inscritos en ningún retiro (no aparecerán en Mesas, Equipo de Palancas ni Tareas de ese retiro). Elige siempre el retiro correcto antes de subir el Excel.</p>
       </div>`;
   },
 
